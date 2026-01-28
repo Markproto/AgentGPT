@@ -42,7 +42,7 @@
                         <label class="form-label">Import Type</label>
                         <select name="import_type" class="form-select" id="importType">
                             <option value="calls">Call Log (Phone, Name, Duration, Summary)</option>
-                            <option value="customers">Customers (Name, Phone, Email, Notes)</option>
+                            <option value="customers">Customers (Name, Phone, Email, Action, Metal, Form, Notes)</option>
                             <option value="texts">Text Messages (Phone, Message, Direction)</option>
                         </select>
                     </div>
@@ -102,8 +102,20 @@
 
                     <div id="guide-customers" style="display:none;">
                         <h6>Customer Import</h6>
-                        <p>Required: <code>name</code> column. Optional: <code>phone</code>, <code>email</code>, <code>notes</code></p>
-                        <p class="text-muted"><small>Duplicates are detected by phone number and skipped.</small></p>
+                        <p>Required: <code>name</code> column. All others are optional.</p>
+                        <table class="table table-sm">
+                            <thead><tr><th>Field</th><th>Accepted Column Names</th><th>Values</th></tr></thead>
+                            <tbody>
+                                <tr><td>Name</td><td><code>name</code>, <code>customer_name</code>, <code>customer</code>, <code>contact</code></td><td>Any text</td></tr>
+                                <tr><td>Phone</td><td><code>phone</code>, <code>phone_number</code>, <code>mobile</code>, <code>cell</code></td><td>Any format</td></tr>
+                                <tr><td>Email</td><td><code>email</code>, <code>email_address</code></td><td>Email address</td></tr>
+                                <tr><td>Action</td><td><code>action</code>, <code>buying_selling</code>, <code>buy_sell</code>, <code>type</code></td><td>BUYING or SELLING</td></tr>
+                                <tr><td>Metal</td><td><code>metal</code>, <code>metal_type</code>, <code>precious_metal</code></td><td>GOLD, SILVER, PLATINUM, PALLADIUM</td></tr>
+                                <tr><td>Form</td><td><code>form</code>, <code>metal_form</code>, <code>product_type</code></td><td>BULLION, SCRAP, OTHER</td></tr>
+                                <tr><td>Notes</td><td><code>notes</code>, <code>comments</code>, <code>description</code></td><td>Any text</td></tr>
+                            </tbody>
+                        </table>
+                        <p class="text-muted"><small>Duplicates are detected by phone number and skipped. Action/Metal/Form values are case-insensitive.</small></p>
                     </div>
 
                     <div id="guide-texts" style="display:none;">

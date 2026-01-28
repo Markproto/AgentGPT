@@ -152,6 +152,49 @@
                         <label class="form-label">Notes</label>
                         <textarea id="apptNotes" class="form-control" rows="2"></textarea>
                     </div>
+                    <div class="mb-2 p-2 bg-light rounded" style="font-size:0.85rem;">
+                        <div class="d-flex flex-wrap gap-3 align-items-center">
+                            <div>
+                                <span class="fw-bold me-1">Action:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="apptAction" id="apptActionNone" value="" checked>
+                                    <label class="btn btn-outline-secondary" for="apptActionNone">--</label>
+                                    <input type="radio" class="btn-check" name="apptAction" id="apptActionBuying" value="BUYING">
+                                    <label class="btn btn-outline-primary" for="apptActionBuying">Buying</label>
+                                    <input type="radio" class="btn-check" name="apptAction" id="apptActionSelling" value="SELLING">
+                                    <label class="btn btn-outline-primary" for="apptActionSelling">Selling</label>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="fw-bold me-1">Metal:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="apptMetal" id="apptMetalNone" value="" checked>
+                                    <label class="btn btn-outline-secondary" for="apptMetalNone">--</label>
+                                    <input type="radio" class="btn-check" name="apptMetal" id="apptMetalGold" value="GOLD">
+                                    <label class="btn btn-outline-warning" for="apptMetalGold">Gold</label>
+                                    <input type="radio" class="btn-check" name="apptMetal" id="apptMetalSilver" value="SILVER">
+                                    <label class="btn btn-outline-secondary" for="apptMetalSilver">Silver</label>
+                                    <input type="radio" class="btn-check" name="apptMetal" id="apptMetalPlatinum" value="PLATINUM">
+                                    <label class="btn btn-outline-info" for="apptMetalPlatinum">Platinum</label>
+                                    <input type="radio" class="btn-check" name="apptMetal" id="apptMetalPalladium" value="PALLADIUM">
+                                    <label class="btn btn-outline-dark" for="apptMetalPalladium">Palladium</label>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="fw-bold me-1">Form:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="apptForm" id="apptFormNone" value="" checked>
+                                    <label class="btn btn-outline-secondary" for="apptFormNone">--</label>
+                                    <input type="radio" class="btn-check" name="apptForm" id="apptFormBullion" value="BULLION">
+                                    <label class="btn btn-outline-success" for="apptFormBullion">Bullion</label>
+                                    <input type="radio" class="btn-check" name="apptForm" id="apptFormScrap" value="SCRAP">
+                                    <label class="btn btn-outline-success" for="apptFormScrap">Scrap</label>
+                                    <input type="radio" class="btn-check" name="apptForm" id="apptFormOther" value="OTHER">
+                                    <label class="btn btn-outline-success" for="apptFormOther">Other</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <button type="submit" class="d-none"></button>
                 </form>
             </div>
@@ -352,6 +395,9 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('apptPhone').value = '';
             document.getElementById('apptPurpose').value = '';
             document.getElementById('apptNotes').value = '';
+            document.getElementById('apptActionNone').checked = true;
+            document.getElementById('apptMetalNone').checked = true;
+            document.getElementById('apptFormNone').checked = true;
             document.getElementById('apptDatetime').value = info.startStr.slice(0, 16);
             if (info.endStr) document.getElementById('apptEndDatetime').value = info.endStr.slice(0, 16);
             new bootstrap.Modal(document.getElementById('appointmentModal')).show();
@@ -615,11 +661,20 @@ function saveAppointment() {
     }
 
     var phone = document.getElementById('apptPhone').value.trim();
+    var actionEl = document.querySelector('input[name="apptAction"]:checked');
+    var metalEl = document.querySelector('input[name="apptMetal"]:checked');
+    var formEl = document.querySelector('input[name="apptForm"]:checked');
+    var action = actionEl ? actionEl.value : '';
+    var metal = metalEl ? metalEl.value : '';
+    var metalForm = formEl ? formEl.value : '';
 
     var formData = new FormData();
     formData.append('customer', customerId);
     formData.append('customer_name', customerName);
     if (phone) formData.append('phone', phone);
+    if (action) formData.append('action', action);
+    if (metal) formData.append('metal', metal);
+    if (metalForm) formData.append('metal_form', metalForm);
     formData.append('iso_datetime', isoStart);
     if (isoEnd) formData.append('iso_end_datetime', isoEnd);
     formData.append('purpose', purpose);

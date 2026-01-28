@@ -15,10 +15,26 @@ class Customer(models.Model):
         BUY_SCRAP_GOLD = "BUY_SCRAP_GOLD", "Buy Scrap Gold"
         BUY_SCRAP_SILVER = "BUY_SCRAP_SILVER", "Buy Scrap Silver"
 
+    class Action(models.TextChoices):
+        BUYING = "BUYING", "Buying"
+        SELLING = "SELLING", "Selling"
+
+    class Metal(models.TextChoices):
+        GOLD = "GOLD", "Gold"
+        SILVER = "SILVER", "Silver"
+        PLATINUM = "PLATINUM", "Platinum"
+        PALLADIUM = "PALLADIUM", "Palladium"
+
+    class MetalForm(models.TextChoices):
+        BULLION = "BULLION", "Bullion"
+        SCRAP = "SCRAP", "Scrap"
+        OTHER = "OTHER", "Other"
+
     class BullionType(models.TextChoices):
         GOLD = "GOLD", "Gold"
         SILVER = "SILVER", "Silver"
         PLATINUM = "PLATINUM", "Platinum"
+        PALLADIUM = "PALLADIUM", "Palladium"
 
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"
@@ -36,10 +52,22 @@ class Customer(models.Model):
     name = models.CharField(max_length=255)
     phone = models.CharField(max_length=20, blank=True, default="")
     email = models.EmailField(blank=True, default="")
+    # New category fields (optional - pick one from each when applicable)
+    action = models.CharField(
+        max_length=10, choices=Action.choices, blank=True, default=""
+    )
+    metal = models.CharField(
+        max_length=10, choices=Metal.choices, blank=True, default=""
+    )
+    metal_form = models.CharField(
+        max_length=10, choices=MetalForm.choices, blank=True, default=""
+    )
+    # Legacy category field (kept for backward compat)
     category = models.CharField(
         max_length=20,
         choices=Category.choices,
-        default=Category.BUY_BULLION,
+        blank=True,
+        default="",
     )
     bullion_amount = models.DecimalField(
         max_digits=12,
@@ -51,7 +79,8 @@ class Customer(models.Model):
     bullion_type = models.CharField(
         max_length=10,
         choices=BullionType.choices,
-        default=BullionType.GOLD,
+        blank=True,
+        default="",
     )
     price_per_oz = models.DecimalField(
         max_digits=10,

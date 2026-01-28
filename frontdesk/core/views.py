@@ -130,6 +130,9 @@ def customer_list(request):
     statuses = Customer.Status.choices
     bullion_types = Customer.BullionType.choices
     sources = Customer.Source.choices
+    actions = Customer.Action.choices
+    metals = Customer.Metal.choices
+    metal_forms = Customer.MetalForm.choices
     return render(
         request,
         "customers.html",
@@ -138,6 +141,9 @@ def customer_list(request):
             "statuses": statuses,
             "bullion_types": bullion_types,
             "sources": sources,
+            "actions": actions,
+            "metals": metals,
+            "metal_forms": metal_forms,
         },
     )
 
@@ -147,8 +153,17 @@ def customer_list(request):
 def customer_api(request):
     """JSON API for customer CRUD operations (Handsontable integration)."""
     if request.method == "GET":
-        filter_category = request.GET.get("category", "")
         customers = Customer.objects.all()
+        filter_action = request.GET.get("action", "")
+        filter_metal = request.GET.get("metal", "")
+        filter_form = request.GET.get("metal_form", "")
+        filter_category = request.GET.get("category", "")
+        if filter_action:
+            customers = customers.filter(action=filter_action)
+        if filter_metal:
+            customers = customers.filter(metal=filter_metal)
+        if filter_form:
+            customers = customers.filter(metal_form=filter_form)
         if filter_category:
             customers = customers.filter(category=filter_category)
 
@@ -161,8 +176,9 @@ def customer_api(request):
                     "name": c.name,
                     "phone": c.phone,
                     "email": c.email,
-                    "category": c.category,
-                    "bullion_type": c.bullion_type,
+                    "action": c.action,
+                    "metal": c.metal,
+                    "metal_form": c.metal_form,
                     "bullion_amount": str(c.bullion_amount) if c.bullion_amount else "",
                     "price_per_oz": str(c.price_per_oz) if c.price_per_oz else "",
                     "status": c.status,
@@ -185,8 +201,9 @@ def customer_api(request):
                 name=body.get("name", "New Customer"),
                 phone=body.get("phone", ""),
                 email=body.get("email", ""),
-                category=body.get("category", Customer.Category.BUY_BULLION),
-                bullion_type=body.get("bullion_type", Customer.BullionType.GOLD),
+                action=body.get("action", ""),
+                metal=body.get("metal", ""),
+                metal_form=body.get("metal_form", ""),
                 bullion_amount=body.get("bullion_amount") or None,
                 price_per_oz=body.get("price_per_oz") or None,
                 status=body.get("status", Customer.Status.PENDING),
@@ -211,6 +228,9 @@ def customer_api(request):
                 "name",
                 "phone",
                 "email",
+                "action",
+                "metal",
+                "metal_form",
                 "category",
                 "bullion_type",
                 "status",
@@ -464,6 +484,9 @@ def appointment_create(request):
         customer_id = request.POST.get("customer", "").strip()
         customer_name = request.POST.get("customer_name", "").strip()
         phone = request.POST.get("phone", "").strip()
+        action = request.POST.get("action", "").strip()
+        metal = request.POST.get("metal", "").strip()
+        metal_form = request.POST.get("metal_form", "").strip()
 
         # Try existing customer by ID first
         if customer_id:
@@ -479,6 +502,9 @@ def appointment_create(request):
                 customer = Customer.objects.create(
                     name=customer_name,
                     phone=phone,
+                    action=action,
+                    metal=metal,
+                    metal_form=metal_form,
                     source=Customer.Source.WALK_IN,
                     status=Customer.Status.ACTIVE,
                 )
@@ -487,6 +513,20 @@ def appointment_create(request):
         if customer and phone and not customer.phone:
             customer.phone = phone
             customer.save(update_fields=["phone"])
+
+        # Update category fields on existing customer if provided and not already set
+        update_fields = []
+        if customer and action and not customer.action:
+            customer.action = action
+            update_fields.append("action")
+        if customer and metal and not customer.metal:
+            customer.metal = metal
+            update_fields.append("metal")
+        if customer and metal_form and not customer.metal_form:
+            customer.metal_form = metal_form
+            update_fields.append("metal_form")
+        if update_fields:
+            customer.save(update_fields=update_fields)
 
         if not customer:
             return JsonResponse(
@@ -1221,6 +1261,9 @@ def _import_customers_csv(reader, headers):
     phone_fields = ["phone", "phone_number", "phonenumber", "mobile", "cell", "telephone", "phone number"]
     email_fields = ["email", "email_address", "e-mail"]
     notes_fields = ["notes", "comments", "description"]
+    action_fields = ["action", "buying_selling", "buy_sell", "transaction", "type"]
+    metal_fields = ["metal", "metal_type", "precious_metal"]
+    form_fields = ["form", "metal_form", "product_type", "bullion_scrap"]
 
     def find_header(field_names):
         for h in headers:
@@ -1232,9 +1275,17 @@ def _import_customers_csv(reader, headers):
     phone_col = find_header(phone_fields)
     email_col = find_header(email_fields)
     notes_col = find_header(notes_fields)
+    action_col = find_header(action_fields)
+    metal_col = find_header(metal_fields)
+    form_col = find_header(form_fields)
 
     if not name_col:
         return 0, 0, ["Could not find a 'name' column in the CSV headers."]
+
+    # Valid choice values for matching
+    valid_actions = {v.upper(): v for v, _ in Customer.Action.choices}
+    valid_metals = {v.upper(): v for v, _ in Customer.Metal.choices}
+    valid_forms = {v.upper(): v for v, _ in Customer.MetalForm.choices}
 
     for i, row in enumerate(reader, start=2):
         try:
@@ -1242,6 +1293,9 @@ def _import_customers_csv(reader, headers):
             phone = row.get(phone_col, "").strip() if phone_col else ""
             email = row.get(email_col, "").strip() if email_col else ""
             notes = row.get(notes_col, "").strip() if notes_col else ""
+            action_val = row.get(action_col, "").strip().upper() if action_col else ""
+            metal_val = row.get(metal_col, "").strip().upper() if metal_col else ""
+            form_val = row.get(form_col, "").strip().upper() if form_col else ""
 
             if not name:
                 skipped += 1
@@ -1260,6 +1314,9 @@ def _import_customers_csv(reader, headers):
                 phone=phone,
                 email=email,
                 notes=notes,
+                action=valid_actions.get(action_val, ""),
+                metal=valid_metals.get(metal_val, ""),
+                metal_form=valid_forms.get(form_val, ""),
                 source=Customer.Source.WALK_IN,
                 status=Customer.Status.ACTIVE,
             )
