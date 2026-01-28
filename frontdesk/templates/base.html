@@ -91,6 +91,11 @@
                     <i class="bi bi-file-text"></i> Templates
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'import' in request.path or 'export' in request.path %}active{% endif %}" href="/frontdesk/import/">
+                    <i class="bi bi-cloud-upload"></i> Import/Export
+                </a>
+            </li>
             <li class="nav-item mt-4">
                 <a class="nav-link text-warning" href="/chat">
                     <i class="bi bi-box-arrow-left"></i> Back to Onyx

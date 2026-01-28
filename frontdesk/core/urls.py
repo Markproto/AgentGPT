@@ -35,6 +35,14 @@ urlpatterns = [
     path("calls/", views.call_log_view, name="call_log"),
     path("calls/webhook/", views.call_webhook, name="call_webhook"),
     path("calls/sync/", views.sync_calls, name="sync_calls"),
+    # CSV Import/Export
+    path("import/", views.csv_import_view, name="csv_import"),
+    path("export/calls/", views.csv_export_calls, name="csv_export_calls"),
+    path("export/texts/", views.csv_export_texts, name="csv_export_texts"),
+    # Conversation History
+    path("conversation/<int:pk>/", views.conversation_view, name="conversation"),
+    # Inbound SMS Webhook (Twilio)
+    path("sms/webhook/", views.sms_webhook, name="sms_webhook"),
     # Additional APIs
     path("api/dashboard/stats/", api_views.dashboard_stats_api, name="dashboard_stats_api"),
     path("api/customers/search/", api_views.customer_search_api, name="customer_search_api"),

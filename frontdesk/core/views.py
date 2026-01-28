@@ -2,6 +2,8 @@
 Views for J. Austin Front Desk Processing.
 """
 
+import csv
+import io
 import json
 import logging
 from datetime import timedelta
@@ -12,7 +14,7 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.db.models import Sum, Q, Count
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -858,3 +860,435 @@ def sync_calls(request):
         return JsonResponse({"error": f"API request failed: {e}"}, status=500)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+# ============================================================================
+# CSV Import
+# ============================================================================
+
+
+@login_required
+def csv_import_view(request):
+    """Import customers/calls from a CSV file."""
+    if request.method == "POST":
+        csv_file = request.FILES.get("csv_file")
+        import_type = request.POST.get("import_type", "calls")
+
+        if not csv_file:
+            return render(request, "csv_import.html", {"error": "Please select a CSV file."})
+
+        if not csv_file.name.endswith(".csv"):
+            return render(request, "csv_import.html", {"error": "File must be a .csv file."})
+
+        try:
+            decoded = csv_file.read().decode("utf-8-sig")
+            reader = csv.DictReader(io.StringIO(decoded))
+            headers = reader.fieldnames or []
+
+            imported = 0
+            skipped = 0
+            errors = []
+
+            if import_type == "calls":
+                imported, skipped, errors = _import_calls_csv(reader, headers)
+            elif import_type == "customers":
+                imported, skipped, errors = _import_customers_csv(reader, headers)
+            elif import_type == "texts":
+                imported, skipped, errors = _import_texts_csv(reader, headers)
+
+            return render(
+                request,
+                "csv_import.html",
+                {
+                    "success": True,
+                    "imported": imported,
+                    "skipped": skipped,
+                    "errors": errors[:20],
+                    "headers_found": headers,
+                    "import_type": import_type,
+                },
+            )
+
+        except Exception as e:
+            return render(request, "csv_import.html", {"error": f"Error processing file: {e}"})
+
+    return render(request, "csv_import.html")
+
+
+def _import_calls_csv(reader, headers):
+    """Import call log records from CSV."""
+    imported = 0
+    skipped = 0
+    errors = []
+
+    # Map common header names
+    phone_fields = ["phone", "phone_number", "phonenumber", "caller_id", "from", "number", "phone number", "caller"]
+    name_fields = ["name", "customer_name", "customer", "contact", "caller_name", "contact name"]
+    date_fields = ["date", "datetime", "call_date", "created_at", "timestamp", "time", "call date"]
+    duration_fields = ["duration", "call_duration", "length", "seconds"]
+    direction_fields = ["direction", "type", "call_type"]
+    summary_fields = ["summary", "transcript", "notes", "description", "content", "call summary"]
+    category_fields = ["category", "intent", "reason", "call_reason", "purpose"]
+
+    def find_header(field_names):
+        for h in headers:
+            if h.lower().strip() in field_names:
+                return h
+        return None
+
+    phone_col = find_header(phone_fields)
+    name_col = find_header(name_fields)
+    date_col = find_header(date_fields)
+    duration_col = find_header(duration_fields)
+    direction_col = find_header(direction_fields)
+    summary_col = find_header(summary_fields)
+    category_col = find_header(category_fields)
+
+    for i, row in enumerate(reader, start=2):
+        try:
+            phone = row.get(phone_col, "").strip() if phone_col else ""
+            name = row.get(name_col, "").strip() if name_col else ""
+            summary = row.get(summary_col, "").strip() if summary_col else ""
+            category = row.get(category_col, "").strip() if category_col else ""
+
+            if not phone and not name:
+                skipped += 1
+                continue
+
+            # Parse duration
+            duration = None
+            if duration_col and row.get(duration_col, "").strip():
+                try:
+                    dur_str = row[duration_col].strip().replace("s", "").replace("sec", "")
+                    duration = int(float(dur_str))
+                except (ValueError, TypeError):
+                    pass
+
+            # Parse direction
+            direction = "INBOUND"
+            if direction_col and row.get(direction_col, ""):
+                d = row[direction_col].strip().upper()
+                if "OUT" in d:
+                    direction = "OUTBOUND"
+
+            # Try to match to existing customer
+            customer = None
+            if phone:
+                clean = phone.replace("-", "").replace("(", "").replace(")", "").replace(" ", "").replace("+", "")
+                if len(clean) >= 10:
+                    customer = Customer.objects.filter(phone__icontains=clean[-10:]).first()
+                else:
+                    customer = Customer.objects.filter(phone__icontains=phone).first()
+
+            # If no customer found but we have name+phone, create one
+            if not customer and name and phone:
+                customer = Customer.objects.create(
+                    name=name,
+                    phone=phone,
+                    source=Customer.Source.PHONE,
+                    status=Customer.Status.ACTIVE,
+                )
+
+            CallLog.objects.create(
+                customer=customer,
+                phone_number=phone,
+                direction=direction,
+                duration=duration,
+                transcript=summary,
+                category_detected=category,
+            )
+
+            # Also create Interaction if customer matched
+            if customer:
+                Interaction.objects.create(
+                    customer=customer,
+                    type=Interaction.Type.CALL,
+                    direction=(
+                        Interaction.Direction.INBOUND
+                        if direction == "INBOUND"
+                        else Interaction.Direction.OUTBOUND
+                    ),
+                    summary=summary or f"Imported call - {phone}",
+                    raw_data=dict(row),
+                )
+
+            imported += 1
+
+        except Exception as e:
+            errors.append(f"Row {i}: {e}")
+
+    return imported, skipped, errors
+
+
+def _import_customers_csv(reader, headers):
+    """Import customer records from CSV."""
+    imported = 0
+    skipped = 0
+    errors = []
+
+    name_fields = ["name", "customer_name", "customer", "contact", "full_name", "contact name"]
+    phone_fields = ["phone", "phone_number", "phonenumber", "mobile", "cell", "telephone", "phone number"]
+    email_fields = ["email", "email_address", "e-mail"]
+    notes_fields = ["notes", "comments", "description"]
+
+    def find_header(field_names):
+        for h in headers:
+            if h.lower().strip() in field_names:
+                return h
+        return None
+
+    name_col = find_header(name_fields)
+    phone_col = find_header(phone_fields)
+    email_col = find_header(email_fields)
+    notes_col = find_header(notes_fields)
+
+    if not name_col:
+        return 0, 0, ["Could not find a 'name' column in the CSV headers."]
+
+    for i, row in enumerate(reader, start=2):
+        try:
+            name = row.get(name_col, "").strip()
+            phone = row.get(phone_col, "").strip() if phone_col else ""
+            email = row.get(email_col, "").strip() if email_col else ""
+            notes = row.get(notes_col, "").strip() if notes_col else ""
+
+            if not name:
+                skipped += 1
+                continue
+
+            # Check for duplicate by phone
+            if phone:
+                clean = phone.replace("-", "").replace("(", "").replace(")", "").replace(" ", "")
+                existing = Customer.objects.filter(phone__icontains=clean[-10:] if len(clean) >= 10 else clean).first()
+                if existing:
+                    skipped += 1
+                    continue
+
+            Customer.objects.create(
+                name=name,
+                phone=phone,
+                email=email,
+                notes=notes,
+                source=Customer.Source.WALK_IN,
+                status=Customer.Status.ACTIVE,
+            )
+            imported += 1
+
+        except Exception as e:
+            errors.append(f"Row {i}: {e}")
+
+    return imported, skipped, errors
+
+
+def _import_texts_csv(reader, headers):
+    """Import text message records from CSV."""
+    imported = 0
+    skipped = 0
+    errors = []
+
+    phone_fields = ["phone", "phone_number", "from", "to", "number", "phone number"]
+    message_fields = ["message", "body", "text", "content", "sms_body", "message body"]
+    direction_fields = ["direction", "type"]
+    date_fields = ["date", "datetime", "sent_at", "created_at", "timestamp"]
+
+    def find_header(field_names):
+        for h in headers:
+            if h.lower().strip() in field_names:
+                return h
+        return None
+
+    phone_col = find_header(phone_fields)
+    message_col = find_header(message_fields)
+    direction_col = find_header(direction_fields)
+
+    for i, row in enumerate(reader, start=2):
+        try:
+            phone = row.get(phone_col, "").strip() if phone_col else ""
+            message = row.get(message_col, "").strip() if message_col else ""
+
+            if not phone or not message:
+                skipped += 1
+                continue
+
+            # Match customer by phone
+            customer = None
+            clean = phone.replace("-", "").replace("(", "").replace(")", "").replace(" ", "").replace("+", "")
+            if len(clean) >= 10:
+                customer = Customer.objects.filter(phone__icontains=clean[-10:]).first()
+
+            direction = Interaction.Direction.INBOUND
+            if direction_col and row.get(direction_col, ""):
+                d = row[direction_col].strip().upper()
+                if "OUT" in d:
+                    direction = Interaction.Direction.OUTBOUND
+
+            Interaction.objects.create(
+                customer=customer,
+                type=Interaction.Type.TEXT,
+                direction=direction,
+                summary=message,
+                raw_data={"phone": phone, "imported": True, **dict(row)},
+            )
+            imported += 1
+
+        except Exception as e:
+            errors.append(f"Row {i}: {e}")
+
+    return imported, skipped, errors
+
+
+@login_required
+def csv_export_calls(request):
+    """Export call logs as CSV."""
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="frontdesk_calls.csv"'
+    writer = csv.writer(response)
+    writer.writerow(["Date", "Phone Number", "Customer", "Direction", "Duration (s)", "Category", "Transcript"])
+
+    for call in CallLog.objects.select_related("customer").all():
+        writer.writerow([
+            call.created_at.strftime("%Y-%m-%d %H:%M"),
+            call.phone_number,
+            call.customer.name if call.customer else "",
+            call.direction,
+            call.duration or "",
+            call.category_detected,
+            call.transcript,
+        ])
+    return response
+
+
+@login_required
+def csv_export_texts(request):
+    """Export text interactions as CSV."""
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="frontdesk_texts.csv"'
+    writer = csv.writer(response)
+    writer.writerow(["Date", "Customer", "Phone", "Direction", "Message"])
+
+    for text in Interaction.objects.filter(type=Interaction.Type.TEXT).select_related("customer").all():
+        writer.writerow([
+            text.created_at.strftime("%Y-%m-%d %H:%M"),
+            text.customer.name if text.customer else "",
+            text.customer.phone if text.customer else "",
+            text.direction,
+            text.summary,
+        ])
+    return response
+
+
+# ============================================================================
+# Conversation History
+# ============================================================================
+
+
+@login_required
+def conversation_view(request, pk):
+    """Per-customer conversation thread showing all texts sent and received."""
+    customer = get_object_or_404(Customer, pk=pk)
+
+    # Get all text interactions for this customer, ordered chronologically
+    messages = Interaction.objects.filter(
+        customer=customer,
+        type=Interaction.Type.TEXT,
+    ).order_by("created_at")
+
+    # If sending a quick reply from the conversation view
+    if request.method == "POST":
+        message_text = request.POST.get("message", "").strip()
+        if message_text:
+            Interaction.objects.create(
+                customer=customer,
+                type=Interaction.Type.TEXT,
+                direction=Interaction.Direction.OUTBOUND,
+                summary=message_text,
+                raw_data={
+                    "to": customer.phone or customer.email,
+                    "message": message_text,
+                    "sent_via": "conversation_view",
+                },
+            )
+            # Send via Twilio if configured
+            if customer.phone and settings.TWILIO_ACCOUNT_SID:
+                try:
+                    from twilio.rest import Client
+                    client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+                    client.messages.create(
+                        body=message_text,
+                        from_=settings.TWILIO_PHONE,
+                        to=customer.phone,
+                    )
+                except Exception as e:
+                    logger.error(f"Twilio send from conversation failed: {e}")
+
+            return redirect("conversation", pk=pk)
+
+    context = {
+        "customer": customer,
+        "messages": messages,
+    }
+    return render(request, "conversation.html", context)
+
+
+# ============================================================================
+# Inbound SMS Webhook (Twilio)
+# ============================================================================
+
+
+@csrf_exempt
+@require_POST
+def sms_webhook(request):
+    """Webhook endpoint for inbound SMS from Twilio.
+
+    Twilio sends POST data with:
+    - From: the sender phone number
+    - To: your Twilio phone number
+    - Body: the text message content
+    - MessageSid: unique Twilio message ID
+    """
+    from_number = request.POST.get("From", "")
+    to_number = request.POST.get("To", "")
+    body = request.POST.get("Body", "")
+    message_sid = request.POST.get("MessageSid", "")
+
+    logger.info(f"Inbound SMS from {from_number}: {body[:100]}")
+
+    # Match phone number to customer
+    customer = None
+    if from_number:
+        clean = from_number.replace("-", "").replace("(", "").replace(")", "").replace(" ", "").replace("+", "")
+        if len(clean) >= 10:
+            customer = Customer.objects.filter(phone__icontains=clean[-10:]).first()
+        else:
+            customer = Customer.objects.filter(phone__icontains=from_number).first()
+
+    # If no customer found, create one
+    if not customer and from_number:
+        customer = Customer.objects.create(
+            name=f"Unknown ({from_number})",
+            phone=from_number,
+            source=Customer.Source.TEXT,
+            status=Customer.Status.ACTIVE,
+        )
+
+    # Record the inbound text
+    if customer:
+        Interaction.objects.create(
+            customer=customer,
+            type=Interaction.Type.TEXT,
+            direction=Interaction.Direction.INBOUND,
+            summary=body,
+            raw_data={
+                "from": from_number,
+                "to": to_number,
+                "body": body,
+                "message_sid": message_sid,
+                "source": "twilio_webhook",
+            },
+        )
+
+    # Return TwiML empty response (no auto-reply)
+    return HttpResponse(
+        '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+        content_type="text/xml",
+    )
