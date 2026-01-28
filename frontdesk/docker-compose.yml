@@ -7,6 +7,10 @@ services:
       - "8001:8001"
     env_file:
       - .env
+    environment:
+      TWILIO_ACCOUNT_SID: ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+      TWILIO_AUTH_TOKEN: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+      TWILIO_PHONE: "+1XXXXXXXXXX"
     depends_on:
       frontdesk-db:
         condition: service_healthy
@@ -47,6 +51,10 @@ services:
     command: celery -A frontdesk worker -l info
     env_file:
       - .env
+    environment:
+      TWILIO_ACCOUNT_SID: ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+      TWILIO_AUTH_TOKEN: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+      TWILIO_PHONE: "+1XXXXXXXXXX"
     depends_on:
       frontdesk-db:
         condition: service_healthy
