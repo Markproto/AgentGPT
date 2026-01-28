@@ -91,7 +91,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "America/Chicago"
+TIME_ZONE = "America/Los_Angeles"
 USE_I18N = True
 USE_TZ = True
 
@@ -135,7 +135,7 @@ CELERY_RESULT_BACKEND = os.environ.get("FRONTDESK_REDIS_URL", "redis://localhost
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = "America/Chicago"
+CELERY_TIMEZONE = "America/Los_Angeles"
 
 # Third-party API Keys
 SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")

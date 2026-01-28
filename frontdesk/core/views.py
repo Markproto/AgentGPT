@@ -487,27 +487,47 @@ def appointment_create(request):
                 status=400,
             )
 
+        iso_datetime = request.POST.get("iso_datetime", "").strip()
         appt_date = request.POST.get("appt_date", "")
         appt_time = request.POST.get("appt_time", "")
         purpose = request.POST.get("purpose", "").strip()
         duration_minutes = int(request.POST.get("duration", "30") or "30")
 
-        if not appt_date or not appt_time or not purpose:
+        if not purpose:
             return JsonResponse(
-                {"errors": {"form": ["Date, time slot, and purpose are required."]}},
+                {"errors": {"form": ["Purpose is required."]}},
                 status=400,
             )
 
+        dt = None
         try:
-            from dateutil.parser import parse
-            dt = parse(f"{appt_date} {appt_time}")
+            from dateutil.parser import parse as dt_parse
+            if iso_datetime:
+                # Calendar sends UTC ISO datetime — timezone-aware
+                dt = dt_parse(iso_datetime)
+            elif appt_date and appt_time:
+                # Day planner sends local date + time — treat as server timezone
+                naive = dt_parse(f"{appt_date} {appt_time}")
+                dt = timezone.make_aware(naive, timezone.get_current_timezone())
+            else:
+                return JsonResponse(
+                    {"errors": {"form": ["Date and time are required."]}},
+                    status=400,
+                )
         except Exception:
             return JsonResponse(
                 {"errors": {"datetime": ["Invalid date or time."]}},
                 status=400,
             )
 
-        end_dt = dt + timedelta(minutes=duration_minutes)
+        iso_end = request.POST.get("iso_end_datetime", "").strip()
+        if iso_end:
+            try:
+                end_dt = dt_parse(iso_end)
+            except Exception:
+                end_dt = dt + timedelta(minutes=duration_minutes)
+        else:
+            end_dt = dt + timedelta(minutes=duration_minutes)
 
         appointment = Appointment.objects.create(
             customer=customer,

@@ -4,6 +4,40 @@
 
 {% block extra_css %}
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+<style>
+/* Event styling - readable text on colored backgrounds */
+.fc-event { cursor: pointer; border: none; }
+.fc-daygrid-event { padding: 2px 4px; }
+.fc-timegrid-event .fc-event-main { padding: 2px 4px; font-size: 0.85rem; }
+.fc-event-main { color: #fff !important; font-weight: 500; }
+
+/* Status colors */
+.fc-event.st-SCHEDULED { background-color: #0d6efd !important; border-color: #0d6efd !important; }
+.fc-event.st-CONFIRMED { background-color: #198754 !important; border-color: #198754 !important; }
+.fc-event.st-COMPLETED { background-color: #6c757d !important; border-color: #6c757d !important; }
+.fc-event.st-CANCELED {
+    background-color: #f8d7da !important; border-color: #dc3545 !important;
+    text-decoration: line-through; opacity: 0.6;
+}
+.fc-event.st-CANCELED .fc-event-main { color: #842029 !important; }
+.fc-event.st-NO_SHOW { background-color: #ffc107 !important; border-color: #ffc107 !important; }
+.fc-event.st-NO_SHOW .fc-event-main { color: #664d03 !important; }
+
+/* Detail modal status badges */
+.status-badge {
+    display: inline-block; padding: 0.25rem 0.6rem; border-radius: 4px;
+    font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.status-SCHEDULED { background: #cfe2ff; color: #084298; }
+.status-CONFIRMED { background: #d1e7dd; color: #0f5132; }
+.status-COMPLETED { background: #e2e3e5; color: #41464b; }
+.status-CANCELED { background: #f8d7da; color: #842029; }
+.status-NO_SHOW { background: #fff3cd; color: #664d03; }
+
+/* Action buttons row */
+.appt-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dee2e6; }
+.appt-actions .btn { flex: 1; min-width: 100px; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -73,9 +107,9 @@
                 <h5 class="modal-title" id="eventTitle"></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" id="eventBody"></div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <div class="modal-body">
+                <div id="eventBody"></div>
+                <div class="appt-actions" id="eventActions"></div>
             </div>
         </div>
     </div>
@@ -86,31 +120,82 @@
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
 <script>
 let calendar;
+let currentEventId = null;
+
 document.addEventListener('DOMContentLoaded', function() {
     const el = document.getElementById('calendar');
     calendar = new FullCalendar.Calendar(el, {
         initialView: 'dayGridMonth',
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
-        events: { url: '/frontdesk/appointments/api/', failure: () => alert('Error loading events') },
+        events: { url: '/frontdesk/appointments/api/', failure: function() { alert('Error loading events'); } },
         editable: true,
         selectable: true,
         selectMirror: true,
         dayMaxEvents: true,
+        eventClassNames: function(arg) {
+            var status = (arg.event.extendedProps || {}).status || 'SCHEDULED';
+            return ['st-' + status];
+        },
+        eventContent: function(arg) {
+            var props = arg.event.extendedProps || {};
+            var timeText = arg.timeText || '';
+            var name = props.customer_name || '';
+            var purpose = props.purpose || arg.event.title || '';
+            var el = document.createElement('div');
+            el.style.overflow = 'hidden';
+            el.style.whiteSpace = 'nowrap';
+            el.style.textOverflow = 'ellipsis';
+            el.style.width = '100%';
+            if (timeText) {
+                el.innerHTML = '<b>' + timeText + '</b> ' + name + ' - ' + purpose;
+            } else {
+                el.innerHTML = name + ' - ' + purpose;
+            }
+            return { domNodes: [el] };
+        },
         select: function(info) {
             document.getElementById('apptDatetime').value = info.startStr.slice(0, 16);
             if (info.endStr) document.getElementById('apptEndDatetime').value = info.endStr.slice(0, 16);
             new bootstrap.Modal(document.getElementById('appointmentModal')).show();
         },
         eventClick: function(info) {
-            const props = info.event.extendedProps;
+            var props = info.event.extendedProps;
+            currentEventId = info.event.id;
+            var status = props.status || 'SCHEDULED';
+
             document.getElementById('eventTitle').textContent = info.event.title;
+
+            var statusBadge = '<span class="status-badge status-' + status + '">' + status.replace('_', ' ') + '</span>';
+
             document.getElementById('eventBody').innerHTML =
-                '<p><strong>Customer:</strong> ' + props.customer_name + '</p>' +
-                '<p><strong>Purpose:</strong> ' + props.purpose + '</p>' +
-                '<p><strong>Location:</strong> ' + props.location + '</p>' +
-                '<p><strong>Status:</strong> ' + props.status + '</p>' +
+                '<p><strong>Customer:</strong> ' + (props.customer_name || '') + '</p>' +
+                '<p><strong>Purpose:</strong> ' + (props.purpose || '') + '</p>' +
+                '<p><strong>Location:</strong> ' + (props.location || '') + '</p>' +
+                '<p><strong>Status:</strong> ' + statusBadge + '</p>' +
                 '<p><strong>Notes:</strong> ' + (props.notes || 'None') + '</p>' +
-                '<p><strong>Time:</strong> ' + info.event.start.toLocaleString() + '</p>';
+                '<p><strong>Time:</strong> ' + info.event.start.toLocaleString() +
+                (info.event.end ? ' - ' + info.event.end.toLocaleTimeString() : '') + '</p>';
+
+            // Build action buttons based on current status
+            var actions = '';
+            if (status === 'SCHEDULED') {
+                actions += '<button class="btn btn-success" onclick="updateStatus(\'CONFIRMED\')"><i class="bi bi-check-lg"></i> Confirm</button>';
+                actions += '<button class="btn btn-danger" onclick="updateStatus(\'CANCELED\')"><i class="bi bi-x-lg"></i> Cancel</button>';
+            } else if (status === 'CONFIRMED') {
+                actions += '<button class="btn btn-secondary" onclick="updateStatus(\'COMPLETED\')"><i class="bi bi-check-circle"></i> Complete</button>';
+                actions += '<button class="btn btn-warning" onclick="updateStatus(\'NO_SHOW\')"><i class="bi bi-person-x"></i> No Show</button>';
+                actions += '<button class="btn btn-danger" onclick="updateStatus(\'CANCELED\')"><i class="bi bi-x-lg"></i> Cancel</button>';
+            } else if (status === 'CANCELED') {
+                actions += '<button class="btn btn-primary" onclick="updateStatus(\'SCHEDULED\')"><i class="bi bi-arrow-counterclockwise"></i> Reschedule</button>';
+            } else if (status === 'COMPLETED') {
+                actions += '<button class="btn btn-outline-secondary" disabled><i class="bi bi-check-circle"></i> Completed</button>';
+            } else if (status === 'NO_SHOW') {
+                actions += '<button class="btn btn-primary" onclick="updateStatus(\'SCHEDULED\')"><i class="bi bi-arrow-counterclockwise"></i> Reschedule</button>';
+            }
+            actions += '<button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>';
+
+            document.getElementById('eventActions').innerHTML = actions;
+
             new bootstrap.Modal(document.getElementById('eventDetailModal')).show();
         },
         eventDrop: function(info) {
@@ -128,6 +213,26 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     calendar.render();
 });
+
+function updateStatus(newStatus) {
+    if (!currentEventId) return;
+    fetch('/frontdesk/appointments/api/', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify({ id: currentEventId, status: newStatus })
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+    }).then(function(d) {
+        if (d.status === 'updated') {
+            bootstrap.Modal.getInstance(document.getElementById('eventDetailModal')).hide();
+            calendar.refetchEvents();
+        }
+    }).catch(function(err) {
+        alert('Failed to update: ' + err.message);
+    });
+}
 
 function saveAppointment() {
     const customerName = document.getElementById('apptCustomerName').value.trim();
@@ -148,31 +253,25 @@ function saveAppointment() {
         }
     });
 
-    // Split datetime-local into date and 12h time for backend
-    const dtParts = datetimeVal.split('T');
-    const apptDate = dtParts[0];
-    const timeParts = dtParts[1].split(':');
-    let h = parseInt(timeParts[0]);
-    const m = timeParts[1];
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    if (h > 12) h -= 12;
-    if (h === 0) h = 12;
-    const apptTime = h + ':' + m + ' ' + ampm;
+    // Send as UTC ISO datetime to avoid timezone mismatch
+    const startDt = new Date(datetimeVal);
+    const isoStart = startDt.toISOString();
 
     // Calculate duration from start/end (default 30 min)
     let duration = 30;
+    let isoEnd = '';
     if (endDatetimeVal) {
-        const startMs = new Date(datetimeVal).getTime();
-        const endMs = new Date(endDatetimeVal).getTime();
-        duration = Math.round((endMs - startMs) / 60000);
+        const endDt = new Date(endDatetimeVal);
+        isoEnd = endDt.toISOString();
+        duration = Math.round((endDt.getTime() - startDt.getTime()) / 60000);
         if (duration <= 0) duration = 30;
     }
 
     const formData = new FormData();
     formData.append('customer', customerId);
     formData.append('customer_name', customerName);
-    formData.append('appt_date', apptDate);
-    formData.append('appt_time', apptTime);
+    formData.append('iso_datetime', isoStart);
+    if (isoEnd) formData.append('iso_end_datetime', isoEnd);
     formData.append('purpose', purpose);
     formData.append('duration', duration);
 
