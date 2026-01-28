@@ -17,7 +17,7 @@ from django.db.models import Sum, Q, Count
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST, require_http_methods
 
 from .forms import CustomerForm, AppointmentForm, TextTemplateForm, SendTextForm, LoginForm
@@ -427,6 +427,7 @@ def match_action(request, pk, action):
 
 
 @login_required
+@ensure_csrf_cookie
 def appointment_list(request):
     """Day planner / week view for appointments."""
     from datetime import date as date_type

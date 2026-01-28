@@ -223,7 +223,10 @@ function loadDate(dateStr) {
     document.getElementById('dateLabel').textContent = d.toLocaleDateString('en-US', opts);
 
     fetch('/frontdesk/appointments/api/?start=' + dateStr + 'T00:00:00&end=' + dateStr + 'T23:59:59')
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) throw new Error('Server error ' + r.status);
+            return r.json();
+        })
         .then(events => {
             appointments = {};
             allDayEvents = events;
@@ -233,6 +236,12 @@ function loadDate(dateStr) {
                 if (!appointments[key]) appointments[key] = [];
                 appointments[key].push(ev);
             });
+            if (currentView === 'day') renderPlanner();
+        })
+        .catch(err => {
+            console.error('Load error:', err);
+            // Still render empty planner so slots are clickable
+            appointments = {};
             if (currentView === 'day') renderPlanner();
         });
 }
@@ -372,7 +381,7 @@ function startInlineEdit(slotKey, duration) {
     if (!row) return;
     const content = row.querySelector('.slot-content');
     content.innerHTML =
-        '<input type="text" class="slot-customer" list="customerList" placeholder="Customer name..." autofocus>' +
+        '<input type="text" class="slot-customer" list="customerList" placeholder="Type any name (new or existing)..." autofocus>' +
         '<input type="text" class="slot-inline-input" placeholder="Purpose... (Enter to save)">' +
         '<span class="slot-dur">' + duration + 'min</span>' +
         '<button class="btn btn-sm btn-outline-secondary" onclick="cancelInlineEdit()"><i class="bi bi-x"></i></button>';
@@ -428,12 +437,18 @@ function saveInlineAppt(slotKey, customerName, purpose, duration) {
         headers: { 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
         body: formData
-    }).then(r => r.json()).then(d => {
+    }).then(r => {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+    }).then(d => {
         if (d.status === 'created') {
             loadDate(dateStr);
         } else {
             alert('Error: ' + JSON.stringify(d.errors || d));
         }
+    }).catch(err => {
+        alert('Failed to save appointment: ' + err.message);
+        console.error('Save error:', err);
     });
 }
 
@@ -445,7 +460,10 @@ function splitSlot(slotKey, existingApptId) {
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
         body: JSON.stringify({ id: existingApptId, shorten_to_15: true })
-    }).then(r => r.json()).then(d => {
+    }).then(r => {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+    }).then(d => {
         if (d.status === 'updated') {
             // Now open inline editor for the second 15-min half
             const parts = slotKey.split(':');
@@ -462,6 +480,9 @@ function splitSlot(slotKey, existingApptId) {
                 openSplitEditor(newKey);
             }, 400);
         }
+    }).catch(err => {
+        alert('Failed to split slot: ' + err.message);
+        console.error('Split error:', err);
     });
 }
 
@@ -486,7 +507,7 @@ function openSplitEditor(slotKey) {
     newRow.innerHTML =
         '<div class="slot-time slot-time-sub">' + timeLabel + '</div>' +
         '<div class="slot-content">' +
-            '<input type="text" class="slot-customer" list="customerList" placeholder="Customer name..." autofocus>' +
+            '<input type="text" class="slot-customer" list="customerList" placeholder="Type any name (new or existing)..." autofocus>' +
             '<input type="text" class="slot-inline-input" placeholder="Purpose... (Enter to save)">' +
             '<span class="slot-dur">15min</span>' +
             '<button class="btn btn-sm btn-outline-secondary" onclick="this.closest(\'.slot-row\').remove()"><i class="bi bi-x"></i></button>' +
@@ -526,7 +547,7 @@ function doubleBook(slotKey, duration) {
     newRow.innerHTML =
         '<div class="slot-time"><small class="text-muted">+same</small></div>' +
         '<div class="slot-content">' +
-            '<input type="text" class="slot-customer" list="customerList" placeholder="Customer name..." autofocus>' +
+            '<input type="text" class="slot-customer" list="customerList" placeholder="Type any name (new or existing)..." autofocus>' +
             '<input type="text" class="slot-inline-input" placeholder="Purpose... (Enter to save)">' +
             '<span class="slot-dur">' + duration + 'min</span>' +
             '<button class="btn btn-sm btn-outline-secondary" onclick="this.closest(\'.slot-row\').remove()"><i class="bi bi-x"></i></button>' +
@@ -558,10 +579,16 @@ function setStatus(id, status) {
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
         body: JSON.stringify({ id: id, status: status })
-    }).then(r => r.json()).then(d => {
+    }).then(r => {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+    }).then(d => {
         if (d.status === 'updated') {
             loadDate(getDate());
         }
+    }).catch(err => {
+        alert('Failed to update status: ' + err.message);
+        console.error('Status error:', err);
     });
 }
 
