@@ -132,6 +132,11 @@
                         <small class="text-muted">New names are added automatically</small>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" id="apptPhone" class="form-control"
+                               placeholder="(555) 123-4567" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Date & Time</label>
                         <input type="datetime-local" id="apptDatetime" class="form-control" required>
                     </div>
@@ -344,6 +349,7 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         select: function(info) {
             document.getElementById('apptCustomerName').value = '';
+            document.getElementById('apptPhone').value = '';
             document.getElementById('apptPurpose').value = '';
             document.getElementById('apptNotes').value = '';
             document.getElementById('apptDatetime').value = info.startStr.slice(0, 16);
@@ -402,8 +408,15 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     calendar.render();
 
-    // Fast entry: Customer → Tab → Purpose → Tab → Notes → Enter submits
+    // Fast entry: Customer → Tab → Phone → Tab → Purpose → Tab → Notes → Enter submits
     document.getElementById('apptCustomerName').addEventListener('keydown', function(e) {
+        if (e.key === 'Tab' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('apptPhone').focus();
+        }
+        if (e.key === 'Enter') { e.preventDefault(); saveAppointment(); }
+    });
+    document.getElementById('apptPhone').addEventListener('keydown', function(e) {
         if (e.key === 'Tab' && !e.shiftKey) {
             e.preventDefault();
             document.getElementById('apptPurpose').focus();
@@ -601,9 +614,12 @@ function saveAppointment() {
         if (duration <= 0) duration = 30;
     }
 
+    var phone = document.getElementById('apptPhone').value.trim();
+
     var formData = new FormData();
     formData.append('customer', customerId);
     formData.append('customer_name', customerName);
+    if (phone) formData.append('phone', phone);
     formData.append('iso_datetime', isoStart);
     if (isoEnd) formData.append('iso_end_datetime', isoEnd);
     formData.append('purpose', purpose);

@@ -463,6 +463,7 @@ def appointment_create(request):
         customer = None
         customer_id = request.POST.get("customer", "").strip()
         customer_name = request.POST.get("customer_name", "").strip()
+        phone = request.POST.get("phone", "").strip()
 
         # Try existing customer by ID first
         if customer_id:
@@ -477,9 +478,15 @@ def appointment_create(request):
             if not customer:
                 customer = Customer.objects.create(
                     name=customer_name,
+                    phone=phone,
                     source=Customer.Source.WALK_IN,
                     status=Customer.Status.ACTIVE,
                 )
+
+        # Update phone on existing customer if provided and not already set
+        if customer and phone and not customer.phone:
+            customer.phone = phone
+            customer.save(update_fields=["phone"])
 
         if not customer:
             return JsonResponse(
