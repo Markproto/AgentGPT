@@ -112,6 +112,14 @@ LOGOUT_REDIRECT_URL = "/frontdesk/login/"
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
+# CSRF - required for Django 4.0+ behind reverse proxy with SSL
+CSRF_TRUSTED_ORIGINS = [
+    "https://agent.opentruthai.com",
+]
+
+# Tell Django it's behind HTTPS proxy
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # CORS
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = [
