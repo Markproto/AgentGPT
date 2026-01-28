@@ -428,24 +428,23 @@ def match_action(request, pk, action):
 
 @login_required
 def appointment_list(request):
-    """List of appointments with filters."""
-    status_filter = request.GET.get("status", "")
-    date_filter = request.GET.get("date", "")
+    """Day planner / week view for appointments."""
+    from datetime import date as date_type
 
-    appointments = Appointment.objects.select_related("customer", "match").all()
-
-    if status_filter:
-        appointments = appointments.filter(status=status_filter)
-    if date_filter:
-        appointments = appointments.filter(datetime__date=date_filter)
+    date_str = request.GET.get("date", "")
+    if date_str:
+        try:
+            selected_date = date_type.fromisoformat(date_str)
+        except ValueError:
+            selected_date = timezone.now().date()
+    else:
+        selected_date = timezone.now().date()
 
     customers = Customer.objects.all()
-    form = AppointmentForm()
 
     context = {
-        "appointments": appointments,
         "customers": customers,
-        "form": form,
+        "selected_date": selected_date,
         "statuses": Appointment.Status.choices,
     }
     return render(request, "appointments.html", context)
@@ -453,20 +452,78 @@ def appointment_list(request):
 
 @login_required
 def appointment_create(request):
-    """Create a new appointment via AJAX."""
+    """Create a new appointment.
+
+    Accepts either a customer ID (dropdown) or a typed customer_name.
+    If customer_name is provided and doesn't match, a new customer is created.
+    Supports duration_minutes (default 30) for split-slot 15-min appointments.
+    """
     if request.method == "POST":
-        form = AppointmentForm(request.POST)
-        if form.is_valid():
-            appointment = form.save()
+        customer = None
+        customer_id = request.POST.get("customer", "").strip()
+        customer_name = request.POST.get("customer_name", "").strip()
+
+        # Try existing customer by ID first
+        if customer_id:
+            try:
+                customer = Customer.objects.get(pk=int(customer_id))
+            except (Customer.DoesNotExist, ValueError):
+                pass
+
+        # If no customer selected but name typed, find or create
+        if not customer and customer_name:
+            customer = Customer.objects.filter(name__iexact=customer_name).first()
+            if not customer:
+                customer = Customer.objects.create(
+                    name=customer_name,
+                    source=Customer.Source.WALK_IN,
+                    status=Customer.Status.ACTIVE,
+                )
+
+        if not customer:
             return JsonResponse(
-                {
-                    "status": "created",
-                    "id": appointment.id,
-                    "title": f"{appointment.customer.name} - {appointment.purpose}",
-                }
+                {"errors": {"customer": ["Select or type a customer name."]}},
+                status=400,
             )
-        else:
-            return JsonResponse({"errors": form.errors}, status=400)
+
+        appt_date = request.POST.get("appt_date", "")
+        appt_time = request.POST.get("appt_time", "")
+        purpose = request.POST.get("purpose", "").strip()
+        duration_minutes = int(request.POST.get("duration", "30") or "30")
+
+        if not appt_date or not appt_time or not purpose:
+            return JsonResponse(
+                {"errors": {"form": ["Date, time slot, and purpose are required."]}},
+                status=400,
+            )
+
+        try:
+            from dateutil.parser import parse
+            dt = parse(f"{appt_date} {appt_time}")
+        except Exception:
+            return JsonResponse(
+                {"errors": {"datetime": ["Invalid date or time."]}},
+                status=400,
+            )
+
+        end_dt = dt + timedelta(minutes=duration_minutes)
+
+        appointment = Appointment.objects.create(
+            customer=customer,
+            datetime=dt,
+            end_datetime=end_dt,
+            purpose=purpose,
+            location="J. Austin",
+        )
+
+        return JsonResponse(
+            {
+                "status": "created",
+                "id": appointment.id,
+                "title": f"{customer.name} - {purpose}",
+            }
+        )
+
     return JsonResponse({"error": "POST required"}, status=405)
 
 
@@ -495,16 +552,14 @@ def appointment_api(request):
 
         events = []
         for appt in appointments:
+            end_dt = appt.end_datetime or (appt.datetime + timedelta(minutes=30))
+            duration_min = int((end_dt - appt.datetime).total_seconds() / 60)
             events.append(
                 {
                     "id": appt.id,
                     "title": f"{appt.customer.name} - {appt.purpose}",
                     "start": appt.datetime.isoformat(),
-                    "end": (
-                        appt.end_datetime.isoformat()
-                        if appt.end_datetime
-                        else (appt.datetime + timedelta(hours=1)).isoformat()
-                    ),
+                    "end": end_dt.isoformat(),
                     "color": color_map.get(appt.status, "#0d6efd"),
                     "extendedProps": {
                         "customer_id": appt.customer.id,
@@ -513,6 +568,7 @@ def appointment_api(request):
                         "location": appt.location,
                         "status": appt.status,
                         "notes": appt.notes,
+                        "duration_minutes": duration_min,
                     },
                 }
             )
@@ -524,6 +580,12 @@ def appointment_api(request):
             body = json.loads(request.body)
             appt_id = body.get("id")
             appt = get_object_or_404(Appointment, pk=appt_id)
+
+            if body.get("shorten_to_15"):
+                # Split operation: shorten this appointment to 15 minutes
+                appt.end_datetime = appt.datetime + timedelta(minutes=15)
+                appt.save()
+                return JsonResponse({"status": "updated"})
 
             if "datetime" in body:
                 from dateutil.parser import parse

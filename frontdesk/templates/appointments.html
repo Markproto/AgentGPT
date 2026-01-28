@@ -2,153 +2,427 @@
 {% block title %}Appointments - J. Austin{% endblock %}
 {% block page_title %}Appointments{% endblock %}
 
+{% block extra_css %}
+<style>
+/* ─── View Toggle ─── */
+.view-toggle .btn.active { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+
+/* ─── Day Planner ─── */
+.day-planner { border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; }
+.slot-row { display: flex; border-bottom: 1px solid #e9ecef; min-height: 44px; transition: background 0.15s; }
+.slot-row:last-child { border-bottom: none; }
+.slot-row:hover { background: #f8f9fa; }
+.slot-time {
+    width: 90px; min-width: 90px;
+    padding: 0.4rem 0.6rem;
+    background: #1a1a2e; color: #adb5bd;
+    font-size: 0.78rem; font-weight: 600;
+    display: flex; align-items: center;
+    border-right: 3px solid #ffc107;
+}
+.slot-time-sub { background: #222240; font-size: 0.72rem; }
+.slot-content {
+    flex: 1; padding: 0.3rem 0.6rem;
+    display: flex; align-items: center; gap: 0.5rem;
+}
+.slot-empty .slot-content { cursor: pointer; }
+.slot-empty .slot-content:hover { background: rgba(13,110,253,0.05); }
+.slot-booked { background: #e8f4fd; }
+.slot-booked .slot-content { font-weight: 500; }
+.slot-15 { background: #fff8e1; }
+.slot-inline-input {
+    border: none; background: transparent;
+    font-size: 0.88rem; width: 100%; padding: 0.2rem 0;
+    outline: none;
+}
+.slot-inline-input:focus { border-bottom: 2px solid #0d6efd; }
+.slot-inline-input::placeholder { color: #adb5bd; font-weight: 400; }
+.slot-customer {
+    width: 180px; min-width: 180px;
+    border: none; background: transparent;
+    font-size: 0.88rem; padding: 0.2rem 0;
+    outline: none; font-weight: 600;
+}
+.slot-customer:focus { border-bottom: 2px solid #ffc107; }
+.slot-customer::placeholder { color: #adb5bd; font-weight: 400; }
+.slot-badge { font-size: 0.68rem; padding: 0.15rem 0.4rem; }
+.slot-dur { font-size: 0.65rem; color: #6c757d; }
+.slot-actions { display: flex; gap: 3px; align-items: center; margin-left: auto; }
+.slot-actions .btn { padding: 0.1rem 0.35rem; font-size: 0.72rem; }
+.split-divider { border-top: 2px dashed #ffc107; }
+
+/* ─── Canceled Ghost Slot ─── */
+.slot-canceled {
+    background: #f8f8f8; position: relative; cursor: pointer;
+}
+.slot-canceled .slot-content { opacity: 0.35; font-weight: 400; text-decoration: line-through; }
+.slot-canceled .slot-time { opacity: 0.5; }
+.slot-canceled-overlay {
+    position: absolute; top: 0; left: 90px; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none; z-index: 1;
+}
+.slot-canceled-label {
+    background: rgba(220, 53, 69, 0.08); color: #dc3545;
+    font-size: 0.72rem; font-weight: 600; padding: 0.15rem 0.6rem;
+    border-radius: 4px; letter-spacing: 0.5px; text-transform: uppercase;
+}
+
+/* ─── Week View ─── */
+.week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.week-day-card {
+    border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;
+    cursor: pointer; transition: box-shadow 0.15s, transform 0.15s;
+    min-height: 120px;
+}
+.week-day-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); transform: translateY(-2px); }
+.week-day-card.today { border-color: #ffc107; border-width: 2px; }
+.week-day-header {
+    background: #1a1a2e; color: #adb5bd; padding: 0.4rem 0.6rem;
+    font-size: 0.75rem; font-weight: 600; text-align: center;
+}
+.week-day-header .day-num { font-size: 1.1rem; color: #fff; display: block; }
+.week-day-header.today { background: #ffc107; color: #1a1a2e; }
+.week-day-header.today .day-num { color: #1a1a2e; }
+.week-day-body { padding: 0.4rem; font-size: 0.75rem; max-height: 200px; overflow-y: auto; }
+.week-appt-item {
+    padding: 0.2rem 0.4rem; margin-bottom: 3px; border-radius: 4px;
+    background: #e8f4fd; border-left: 3px solid #0d6efd;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.week-appt-item.st-CONFIRMED { border-left-color: #198754; background: #d1f2e0; }
+.week-appt-item.st-COMPLETED { border-left-color: #6c757d; background: #e9ecef; }
+.week-appt-item.st-CANCELED { border-left-color: #dc3545; background: #f8d7da; }
+.week-appt-item.st-NO_SHOW { border-left-color: #ffc107; background: #fff3cd; }
+.week-empty { color: #adb5bd; text-align: center; padding: 1rem 0; font-size: 0.8rem; }
+.week-count { font-size: 0.7rem; color: #6c757d; text-align: center; padding-top: 0.2rem; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <form method="get" class="d-flex gap-2">
-            <select name="status" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
-                <option value="">All Statuses</option>
-                {% for val, label in statuses %}
-                <option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-            <input type="date" name="date" class="form-control form-control-sm" style="width: auto;"
-                   value="{{ request.GET.date }}" onchange="this.form.submit()">
-        </form>
+    <div class="d-flex align-items-center gap-3">
+        <button class="btn btn-outline-secondary btn-sm" onclick="navigate(-1)"><i class="bi bi-chevron-left"></i></button>
+        <input type="date" id="plannerDate" class="form-control form-control-sm" style="width:auto;"
+               value="{{ selected_date|date:'Y-m-d' }}" onchange="loadDate(this.value)">
+        <button class="btn btn-outline-secondary btn-sm" onclick="navigate(1)"><i class="bi bi-chevron-right"></i></button>
+        <button class="btn btn-outline-primary btn-sm" onclick="goToday()">Today</button>
+        <strong id="dateLabel" class="ms-2"></strong>
     </div>
-    <div>
-        <a href="{% url 'calendar' %}" class="btn btn-outline-info btn-sm me-2">
-            <i class="bi bi-calendar3"></i> Calendar View
+    <div class="d-flex align-items-center gap-2">
+        <div class="btn-group btn-group-sm view-toggle" role="group">
+            <button type="button" class="btn btn-outline-secondary active" id="btnDay" onclick="setView('day')">
+                <i class="bi bi-calendar-day"></i> Day
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="btnWeek" onclick="setView('week')">
+                <i class="bi bi-calendar-week"></i> Week
+            </button>
+        </div>
+        <a href="{% url 'calendar' %}" class="btn btn-outline-info btn-sm">
+            <i class="bi bi-calendar3"></i> Calendar
         </a>
-        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newApptModal">
-            <i class="bi bi-plus-lg"></i> New Appointment
-        </button>
     </div>
 </div>
 
-<div class="card">
+<!-- Day View -->
+<div class="card" id="dayViewCard">
     <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Date & Time</th>
-                        <th>Customer</th>
-                        <th>Purpose</th>
-                        <th>Location</th>
-                        <th>Status</th>
-                        <th>Notes</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for appt in appointments %}
-                    <tr>
-                        <td>
-                            {{ appt.datetime|date:"M d, Y g:i A" }}
-                            {% if appt.end_datetime %}
-                            <br><small class="text-muted">to {{ appt.end_datetime|date:"g:i A" }}</small>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <a href="{% url 'customer_detail' appt.customer.id %}">{{ appt.customer.name }}</a>
-                        </td>
-                        <td>{{ appt.purpose }}</td>
-                        <td>{{ appt.location }}</td>
-                        <td>
-                            {% if appt.status == 'SCHEDULED' %}
-                            <span class="badge bg-primary">Scheduled</span>
-                            {% elif appt.status == 'CONFIRMED' %}
-                            <span class="badge bg-success">Confirmed</span>
-                            {% elif appt.status == 'COMPLETED' %}
-                            <span class="badge bg-secondary">Completed</span>
-                            {% elif appt.status == 'CANCELED' %}
-                            <span class="badge bg-danger">Canceled</span>
-                            {% elif appt.status == 'NO_SHOW' %}
-                            <span class="badge bg-warning text-dark">No Show</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ appt.notes|truncatewords:10 }}</td>
-                        <td>
-                            {% if appt.status == 'SCHEDULED' %}
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-success" onclick="updateApptStatus({{ appt.id }}, 'CONFIRMED')">Confirm</button>
-                                <button class="btn btn-outline-danger" onclick="updateApptStatus({{ appt.id }}, 'CANCELED')">Cancel</button>
-                            </div>
-                            {% elif appt.status == 'CONFIRMED' %}
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-secondary" onclick="updateApptStatus({{ appt.id }}, 'COMPLETED')">Complete</button>
-                                <button class="btn btn-outline-warning" onclick="updateApptStatus({{ appt.id }}, 'NO_SHOW')">No Show</button>
-                            </div>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="7" class="text-center text-muted py-4">No appointments found.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="day-planner" id="dayPlanner">
+            <!-- Slots rendered by JavaScript -->
         </div>
     </div>
 </div>
 
-<!-- New Appointment Modal -->
-<div class="modal fade" id="newApptModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">New Appointment</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="newApptForm">
-                    <div class="mb-3">
-                        <label class="form-label">Customer</label>
-                        <select name="customer" class="form-select" required>
-                            <option value="">Select customer...</option>
-                            {% for c in customers %}
-                            <option value="{{ c.id }}">{{ c.name }} ({{ c.get_category_display }})</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Date & Time</label>
-                        <input type="datetime-local" name="datetime" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">End Time</label>
-                        <input type="datetime-local" name="end_datetime" class="form-control">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Purpose</label>
-                        <input type="text" name="purpose" class="form-control" required placeholder="e.g., Buy 10oz Gold Bullion">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Location</label>
-                        <input type="text" name="location" class="form-control" value="J. Austin Office">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Notes</label>
-                        <textarea name="notes" class="form-control" rows="2"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="createAppointment()">Save Appointment</button>
-            </div>
-        </div>
+<!-- Week View -->
+<div id="weekViewCard" style="display:none;">
+    <div class="week-grid" id="weekGrid">
+        <!-- Week cards rendered by JavaScript -->
     </div>
 </div>
+
+<!-- Customer datalist for autocomplete -->
+<datalist id="customerList">
+    {% for c in customers %}
+    <option data-id="{{ c.id }}" value="{{ c.name }}">{{ c.phone }}</option>
+    {% endfor %}
+</datalist>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-function createAppointment() {
-    const form = document.getElementById('newApptForm');
-    const formData = new FormData(form);
+const customers = [
+    {% for c in customers %}
+    { id: {{ c.id }}, name: "{{ c.name|escapejs }}" },
+    {% endfor %}
+];
+
+let appointments = {};  // keyed by "HH:MM"
+let allDayEvents = [];  // flat list for week view
+let currentView = 'day';
+
+// ─── Time slot helpers ───
+const SLOTS_30 = [];
+for (let h = 8; h <= 17; h++) {
+    SLOTS_30.push({ hour: h, min: 0 });
+    SLOTS_30.push({ hour: h, min: 30 });
+}
+
+function fmtTime(h, m) {
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hh = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+    return hh + ':' + (m < 10 ? '0' + m : m) + ' ' + ampm;
+}
+
+function fmtKey(h, m) {
+    return (h < 10 ? '0' + h : h) + ':' + (m < 10 ? '0' + m : m);
+}
+
+function getDate() {
+    return document.getElementById('plannerDate').value;
+}
+
+function goToday() {
+    const now = new Date();
+    const todayStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    loadDate(todayStr);
+}
+
+function navigate(delta) {
+    if (currentView === 'week') {
+        navigateWeek(delta);
+    } else {
+        const d = new Date(getDate() + 'T12:00:00');
+        d.setDate(d.getDate() + delta);
+        loadDate(dateToStr(d));
+    }
+}
+
+function dateToStr(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// ─── View Toggle ───
+function setView(view) {
+    currentView = view;
+    document.getElementById('btnDay').classList.toggle('active', view === 'day');
+    document.getElementById('btnWeek').classList.toggle('active', view === 'week');
+    document.getElementById('dayViewCard').style.display = view === 'day' ? '' : 'none';
+    document.getElementById('weekViewCard').style.display = view === 'week' ? '' : 'none';
+    if (view === 'day') {
+        loadDate(getDate());
+    } else {
+        loadWeek(getDate());
+    }
+}
+
+// ─── Day View ───
+function loadDate(dateStr) {
+    document.getElementById('plannerDate').value = dateStr;
+    const d = new Date(dateStr + 'T12:00:00');
+    const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    document.getElementById('dateLabel').textContent = d.toLocaleDateString('en-US', opts);
+
+    fetch('/frontdesk/appointments/api/?start=' + dateStr + 'T00:00:00&end=' + dateStr + 'T23:59:59')
+        .then(r => r.json())
+        .then(events => {
+            appointments = {};
+            allDayEvents = events;
+            events.forEach(ev => {
+                const start = new Date(ev.start);
+                const key = fmtKey(start.getHours(), start.getMinutes());
+                if (!appointments[key]) appointments[key] = [];
+                appointments[key].push(ev);
+            });
+            if (currentView === 'day') renderPlanner();
+        });
+}
+
+function renderPlanner() {
+    const planner = document.getElementById('dayPlanner');
+    planner.innerHTML = '';
+
+    SLOTS_30.forEach(slot => {
+        const key = fmtKey(slot.hour, slot.min);
+        const timeLabel = fmtTime(slot.hour, slot.min);
+        const allAppts = appointments[key] || [];
+
+        // Separate active vs canceled
+        const activeAppts = allAppts.filter(a => (a.extendedProps || {}).status !== 'CANCELED');
+        const canceledAppts = allAppts.filter(a => (a.extendedProps || {}).status === 'CANCELED');
+
+        // Check for 15-min sub-slots
+        const subH = slot.min + 15 >= 60 ? slot.hour + 1 : slot.hour;
+        const subM = (slot.min + 15) % 60;
+        const subKey = fmtKey(subH, subM);
+        const subAppts = appointments[subKey] || [];
+        const subHas = subAppts.length > 0 && subAppts.some(a => (a.extendedProps || {}).duration_minutes === 15);
+
+        if (activeAppts.length === 0 && !subHas) {
+            // Slot is open (may have canceled ghosts)
+            if (canceledAppts.length > 0) {
+                // Show ghost of canceled appointment with clickable overlay
+                canceledAppts.forEach(a => {
+                    planner.innerHTML += renderCanceledGhost(key, timeLabel, a);
+                });
+            } else {
+                planner.innerHTML += renderEmptySlot(key, timeLabel, 30);
+            }
+        } else {
+            // Render active appointments
+            activeAppts.forEach((a, i) => {
+                const ep = a.extendedProps || {};
+                const dur = ep.duration_minutes || 30;
+                const showSplit = (activeAppts.length === 1 && dur === 30);
+                const showAdd = (activeAppts.length >= 1 && dur === 30);
+                planner.innerHTML += renderBookedSlot(key, i === 0 ? timeLabel : '', a, dur, showSplit, showAdd && i === 0, activeAppts.length, i);
+            });
+            // Also show any canceled ghosts faded below
+            canceledAppts.forEach(a => {
+                planner.innerHTML += renderCanceledGhost(key, '', a);
+            });
+        }
+    });
+
+    // Attach click handlers for empty slots and canceled ghost slots
+    document.querySelectorAll('.slot-empty .slot-content, .slot-canceled').forEach(el => {
+        el.addEventListener('click', function() {
+            const row = this.closest('.slot-row') || this;
+            const slotKey = row.dataset.key;
+            const dur = parseInt(row.dataset.dur) || 30;
+            startInlineEdit(slotKey, dur);
+        });
+    });
+}
+
+function renderCanceledGhost(key, timeLabel, appt) {
+    const ep = appt.extendedProps || {};
+    const dur = ep.duration_minutes || 30;
+    return '<div class="slot-row slot-canceled" data-key="' + key + '" data-dur="' + dur + '" data-id="' + appt.id + '">' +
+        '<div class="slot-time">' + (timeLabel || '') + '</div>' +
+        '<div class="slot-content">' +
+            '<strong>' + escHtml(ep.customer_name || '') + '</strong> &mdash; ' +
+            escHtml(ep.purpose || appt.title || '') +
+        '</div>' +
+        '<div class="slot-canceled-overlay">' +
+            '<span class="slot-canceled-label">Canceled &bull; Slot Open</span>' +
+        '</div>' +
+        '</div>';
+}
+
+function renderEmptySlot(key, timeLabel, dur) {
+    return '<div class="slot-row slot-empty" data-key="' + key + '" data-dur="' + dur + '">' +
+        '<div class="slot-time">' + timeLabel + '</div>' +
+        '<div class="slot-content"><span class="text-muted" style="font-size:0.82rem;">Click to add appointment...</span></div>' +
+        '</div>';
+}
+
+function renderBookedSlot(key, timeLabel, appt, duration, showSplit, showAdd, total, idx) {
+    const ep = appt.extendedProps || {};
+    const statusBadge = {
+        'SCHEDULED': '<span class="badge bg-primary slot-badge">Scheduled</span>',
+        'CONFIRMED': '<span class="badge bg-success slot-badge">Confirmed</span>',
+        'COMPLETED': '<span class="badge bg-secondary slot-badge">Completed</span>',
+        'CANCELED': '<span class="badge bg-danger slot-badge">Canceled</span>',
+        'NO_SHOW': '<span class="badge bg-warning text-dark slot-badge">No Show</span>'
+    }[ep.status] || '';
+
+    const durLabel = '<span class="slot-dur">' + duration + 'min</span>';
+
+    let actions = '<div class="slot-actions">';
+    if (ep.status === 'SCHEDULED') {
+        actions += '<button class="btn btn-outline-success" onclick="setStatus(' + appt.id + ',\'CONFIRMED\')" title="Confirm"><i class="bi bi-check-lg"></i></button>';
+        actions += '<button class="btn btn-outline-danger" onclick="setStatus(' + appt.id + ',\'CANCELED\')" title="Cancel"><i class="bi bi-x-lg"></i></button>';
+    } else if (ep.status === 'CONFIRMED') {
+        actions += '<button class="btn btn-outline-secondary" onclick="setStatus(' + appt.id + ',\'COMPLETED\')" title="Mark Done"><i class="bi bi-check-circle"></i></button>';
+        actions += '<button class="btn btn-outline-warning" onclick="setStatus(' + appt.id + ',\'NO_SHOW\')" title="No Show"><i class="bi bi-person-x"></i></button>';
+    }
+    // Split: divides 30-min into two 15-min sub-slots
+    if (showSplit) {
+        actions += '<button class="btn btn-outline-info" onclick="splitSlot(\'' + key + '\',' + appt.id + ')" title="Split into two 15-min slots"><i class="bi bi-scissors"></i></button>';
+    }
+    // Double-book: add another person to the same time
+    if (showAdd) {
+        actions += '<button class="btn btn-outline-primary" onclick="doubleBook(\'' + key + '\',' + duration + ')" title="Add another appointment at this time"><i class="bi bi-person-plus"></i></button>';
+    }
+    actions += '</div>';
+
+    const extraClass = (duration === 15 ? ' slot-15' : '') + (total > 1 && idx > 0 ? ' split-divider' : '');
+    const timeCol = timeLabel ? timeLabel :
+        (idx > 0 ? '<small class="text-muted">+' + (total > 1 ? (idx + 1) : '') + '</small>' : '');
+
+    return '<div class="slot-row slot-booked' + extraClass + '" data-key="' + key + '" data-id="' + appt.id + '">' +
+        '<div class="slot-time' + (duration === 15 ? ' slot-time-sub' : '') + '">' + timeCol + '</div>' +
+        '<div class="slot-content">' +
+            '<strong>' + escHtml(ep.customer_name || '') + '</strong> &mdash; ' +
+            escHtml(ep.purpose || appt.title || '') + ' ' +
+            durLabel + ' ' + statusBadge + ' ' + actions +
+        '</div>' +
+        '</div>';
+}
+
+function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+// ─── Inline Edit ───
+function startInlineEdit(slotKey, duration) {
+    const row = document.querySelector('.slot-row[data-key="' + slotKey + '"]');
+    if (!row) return;
+    const content = row.querySelector('.slot-content');
+    content.innerHTML =
+        '<input type="text" class="slot-customer" list="customerList" placeholder="Customer name..." autofocus>' +
+        '<input type="text" class="slot-inline-input" placeholder="Purpose... (Enter to save)">' +
+        '<span class="slot-dur">' + duration + 'min</span>' +
+        '<button class="btn btn-sm btn-outline-secondary" onclick="cancelInlineEdit()"><i class="bi bi-x"></i></button>';
+
+    const nameInput = content.querySelector('.slot-customer');
+    const purposeInput = content.querySelector('.slot-inline-input');
+    nameInput.focus();
+
+    nameInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); purposeInput.focus(); }
+        if (e.key === 'Escape') { cancelInlineEdit(); }
+    });
+    purposeInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveInlineAppt(slotKey, nameInput.value.trim(), purposeInput.value.trim(), duration);
+        }
+        if (e.key === 'Escape') { cancelInlineEdit(); }
+    });
+}
+
+function cancelInlineEdit() {
+    renderPlanner();
+}
+
+function saveInlineAppt(slotKey, customerName, purpose, duration) {
+    if (!customerName || !purpose) {
+        alert('Enter both a customer name and purpose.');
+        return;
+    }
+
+    const dateStr = getDate();
+    const match = customers.find(c => c.name.toLowerCase() === customerName.toLowerCase());
+
+    const formData = new FormData();
+    formData.append('customer', match ? match.id : '');
+    formData.append('customer_name', customerName);
+    formData.append('appt_date', dateStr);
+    formData.append('duration', duration || 30);
+    formData.append('purpose', purpose);
+
+    // Convert 24h key to 12h time for the backend parser
+    const parts = slotKey.split(':');
+    let h = parseInt(parts[0]);
+    const m = parts[1];
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    if (h > 12) h -= 12;
+    if (h === 0) h = 12;
+    formData.set('appt_time', h + ':' + m + ' ' + ampm);
+
     fetch('/frontdesk/appointments/create/', {
         method: 'POST',
         headers: { 'X-CSRFToken': csrftoken },
@@ -156,15 +430,129 @@ function createAppointment() {
         body: formData
     }).then(r => r.json()).then(d => {
         if (d.status === 'created') {
-            bootstrap.Modal.getInstance(document.getElementById('newApptModal')).hide();
-            location.reload();
+            loadDate(dateStr);
         } else {
-            alert('Error: ' + JSON.stringify(d.errors));
+            alert('Error: ' + JSON.stringify(d.errors || d));
         }
     });
 }
 
-function updateApptStatus(id, status) {
+// ─── Split Slot (30min → two 15min) ───
+function splitSlot(slotKey, existingApptId) {
+    // First, shorten the existing appointment to 15 minutes
+    fetch('/frontdesk/appointments/api/', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify({ id: existingApptId, shorten_to_15: true })
+    }).then(r => r.json()).then(d => {
+        if (d.status === 'updated') {
+            // Now open inline editor for the second 15-min half
+            const parts = slotKey.split(':');
+            const h = parseInt(parts[0]);
+            const m = parseInt(parts[1]);
+            const newM = m + 15;
+            const newH = newM >= 60 ? h + 1 : h;
+            const newMin = newM % 60;
+            const newKey = fmtKey(newH, newMin);
+
+            // Reload and then open inline edit for the second half
+            loadDate(getDate());
+            setTimeout(function() {
+                openSplitEditor(newKey);
+            }, 400);
+        }
+    });
+}
+
+function openSplitEditor(slotKey) {
+    // Insert a new row for the second 15-min slot
+    const allRows = document.querySelectorAll('.slot-row');
+    let insertAfter = null;
+
+    // Find the row that precedes this sub-slot
+    for (let i = 0; i < allRows.length; i++) {
+        if (allRows[i].dataset.key <= slotKey) {
+            insertAfter = allRows[i];
+        }
+    }
+
+    const newRow = document.createElement('div');
+    newRow.className = 'slot-row slot-15';
+    newRow.dataset.key = slotKey;
+    const parts = slotKey.split(':');
+    const timeLabel = fmtTime(parseInt(parts[0]), parseInt(parts[1]));
+
+    newRow.innerHTML =
+        '<div class="slot-time slot-time-sub">' + timeLabel + '</div>' +
+        '<div class="slot-content">' +
+            '<input type="text" class="slot-customer" list="customerList" placeholder="Customer name..." autofocus>' +
+            '<input type="text" class="slot-inline-input" placeholder="Purpose... (Enter to save)">' +
+            '<span class="slot-dur">15min</span>' +
+            '<button class="btn btn-sm btn-outline-secondary" onclick="this.closest(\'.slot-row\').remove()"><i class="bi bi-x"></i></button>' +
+        '</div>';
+
+    if (insertAfter) {
+        insertAfter.after(newRow);
+    } else {
+        document.getElementById('dayPlanner').prepend(newRow);
+    }
+
+    const nameInput = newRow.querySelector('.slot-customer');
+    const purposeInput = newRow.querySelector('.slot-inline-input');
+    nameInput.focus();
+
+    nameInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); purposeInput.focus(); }
+        if (e.key === 'Escape') { newRow.remove(); }
+    });
+    purposeInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveInlineAppt(slotKey, nameInput.value.trim(), purposeInput.value.trim(), 15);
+        }
+        if (e.key === 'Escape') { newRow.remove(); }
+    });
+}
+
+// ─── Double-Book (same time, another person) ───
+function doubleBook(slotKey, duration) {
+    const rows = document.querySelectorAll('.slot-row[data-key="' + slotKey + '"]');
+    const lastRow = rows[rows.length - 1];
+
+    const newRow = document.createElement('div');
+    newRow.className = 'slot-row split-divider';
+    newRow.dataset.key = slotKey;
+    newRow.innerHTML =
+        '<div class="slot-time"><small class="text-muted">+same</small></div>' +
+        '<div class="slot-content">' +
+            '<input type="text" class="slot-customer" list="customerList" placeholder="Customer name..." autofocus>' +
+            '<input type="text" class="slot-inline-input" placeholder="Purpose... (Enter to save)">' +
+            '<span class="slot-dur">' + duration + 'min</span>' +
+            '<button class="btn btn-sm btn-outline-secondary" onclick="this.closest(\'.slot-row\').remove()"><i class="bi bi-x"></i></button>' +
+        '</div>';
+
+    lastRow.after(newRow);
+
+    const nameInput = newRow.querySelector('.slot-customer');
+    const purposeInput = newRow.querySelector('.slot-inline-input');
+    nameInput.focus();
+
+    nameInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); purposeInput.focus(); }
+        if (e.key === 'Escape') { newRow.remove(); }
+    });
+    purposeInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveInlineAppt(slotKey, nameInput.value.trim(), purposeInput.value.trim(), duration);
+        }
+        if (e.key === 'Escape') { newRow.remove(); }
+    });
+}
+
+// ─── Status Update ───
+function setStatus(id, status) {
     fetch('/frontdesk/appointments/api/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
@@ -172,11 +560,105 @@ function updateApptStatus(id, status) {
         body: JSON.stringify({ id: id, status: status })
     }).then(r => r.json()).then(d => {
         if (d.status === 'updated') {
-            location.reload();
-        } else {
-            alert('Error: ' + JSON.stringify(d));
+            loadDate(getDate());
         }
     });
 }
+
+// ─── Week View ───
+function getWeekDates(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00');
+    const day = d.getDay(); // 0=Sun
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+        const dd = new Date(monday);
+        dd.setDate(monday.getDate() + i);
+        days.push(dd);
+    }
+    return days;
+}
+
+function navigateWeek(delta) {
+    const d = new Date(getDate() + 'T12:00:00');
+    d.setDate(d.getDate() + (delta * 7));
+    document.getElementById('plannerDate').value = dateToStr(d);
+    loadWeek(dateToStr(d));
+}
+
+function loadWeek(dateStr) {
+    document.getElementById('plannerDate').value = dateStr;
+    const weekDates = getWeekDates(dateStr);
+    const startStr = dateToStr(weekDates[0]);
+    const endStr = dateToStr(weekDates[6]);
+
+    // Update label
+    const startD = weekDates[0];
+    const endD = weekDates[6];
+    const moS = startD.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const moE = endD.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    document.getElementById('dateLabel').textContent = moS + ' - ' + moE;
+
+    fetch('/frontdesk/appointments/api/?start=' + startStr + 'T00:00:00&end=' + endStr + 'T23:59:59')
+        .then(r => r.json())
+        .then(events => {
+            renderWeek(weekDates, events);
+        });
+}
+
+function renderWeek(weekDates, events) {
+    const grid = document.getElementById('weekGrid');
+    grid.innerHTML = '';
+
+    const today = new Date();
+    const todayStr = dateToStr(today);
+
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    weekDates.forEach((d, i) => {
+        const ds = dateToStr(d);
+        const isToday = ds === todayStr;
+        const dayEvents = events.filter(ev => {
+            const evDate = new Date(ev.start);
+            return dateToStr(evDate) === ds;
+        });
+
+        let card = '<div class="week-day-card' + (isToday ? ' today' : '') + '" onclick="switchToDay(\'' + ds + '\')">';
+        card += '<div class="week-day-header' + (isToday ? ' today' : '') + '">';
+        card += dayNames[i];
+        card += '<span class="day-num">' + d.getDate() + '</span>';
+        card += '</div>';
+        card += '<div class="week-day-body">';
+
+        if (dayEvents.length === 0) {
+            card += '<div class="week-empty">No appointments</div>';
+        } else {
+            // Sort by start time
+            dayEvents.sort((a, b) => new Date(a.start) - new Date(b.start));
+            dayEvents.forEach(ev => {
+                const ep = ev.extendedProps || {};
+                const st = new Date(ev.start);
+                const timeStr = fmtTime(st.getHours(), st.getMinutes());
+                card += '<div class="week-appt-item st-' + (ep.status || 'SCHEDULED') + '">';
+                card += '<strong>' + timeStr + '</strong> ' + escHtml(ep.customer_name || '');
+                card += '</div>';
+            });
+        }
+        card += '</div>';
+        card += '<div class="week-count">' + dayEvents.length + ' appt' + (dayEvents.length !== 1 ? 's' : '') + '</div>';
+        card += '</div>';
+
+        grid.innerHTML += card;
+    });
+}
+
+function switchToDay(dateStr) {
+    document.getElementById('plannerDate').value = dateStr;
+    setView('day');
+}
+
+// ─── Initialize ───
+loadDate(document.getElementById('plannerDate').value);
 </script>
 {% endblock %}
