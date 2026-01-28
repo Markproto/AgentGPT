@@ -26,6 +26,8 @@ urlpatterns = [
     path("appointments/api/", views.appointment_api, name="appointment_api"),
     # Calendar
     path("calendar/", views.calendar_view, name="calendar"),
+    # Day Notes
+    path("notes/api/", views.notes_api, name="notes_api"),
     # Texting
     path("texting/", views.texting_view, name="texting"),
     path("texting/send/", views.send_text, name="send_text"),

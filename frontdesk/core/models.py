@@ -228,6 +228,22 @@ class Appointment(models.Model):
         return f"{self.customer.name} - {self.purpose} ({self.datetime:%Y-%m-%d %H:%M})"
 
 
+class DayNote(models.Model):
+    """Day notes - reminders and memos that aren't appointments."""
+
+    date = models.DateField()
+    time = models.TimeField(null=True, blank=True)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["date", "time"]
+
+    def __str__(self):
+        return f"Note: {self.content[:50]} ({self.date})"
+
+
 class CallLog(models.Model):
     """Log of phone calls, integrated with Front Desk AI."""
 

@@ -27,7 +27,24 @@
 .fc-event.st-NO_SHOW { background-color: #ffc107 !important; border-color: #ffc107 !important; }
 .fc-event.st-NO_SHOW .fc-event-main { color: #664d03 !important; }
 
-/* Detail modal status badges */
+/* Day notes - blue ghost behind appointments */
+.fc-event.ev-note {
+    background-color: rgba(13, 110, 253, 0.12) !important;
+    border: 1px dashed rgba(13, 110, 253, 0.4) !important;
+    z-index: 0 !important;
+}
+.fc-event.ev-note .fc-event-main {
+    color: rgba(13, 110, 253, 0.7) !important;
+    font-style: italic;
+    font-weight: 400;
+}
+.fc-daygrid-event.ev-note {
+    background-color: rgba(13, 110, 253, 0.1) !important;
+    border: 1px dashed rgba(13, 110, 253, 0.35) !important;
+}
+.fc-daygrid-event.ev-note .fc-event-main { color: #4a7fcc !important; }
+
+/* Detail modal */
 .status-badge {
     display: inline-block; padding: 0.25rem 0.6rem; border-radius: 4px;
     font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
@@ -38,9 +55,8 @@
 .status-CANCELED { background: #f8d7da; color: #842029; }
 .status-NO_SHOW { background: #fff3cd; color: #664d03; }
 
-/* Action buttons row */
 .appt-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dee2e6; }
-.appt-actions .btn { flex: 1; min-width: 100px; }
+.appt-actions .btn { flex: 1; min-width: 90px; }
 </style>
 {% endblock %}
 
@@ -60,7 +76,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="appointmentForm">
+                <form id="appointmentForm" onsubmit="event.preventDefault(); saveAppointment();">
                     <div class="mb-3">
                         <label class="form-label">Customer</label>
                         <input type="text" id="apptCustomerName" class="form-control"
@@ -86,13 +102,10 @@
                         <input type="text" id="apptPurpose" class="form-control" required placeholder="e.g., Buy 10oz Gold Bullion">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Location</label>
-                        <input type="text" id="apptLocation" class="form-control" value="J. Austin Office">
-                    </div>
-                    <div class="mb-3">
                         <label class="form-label">Notes</label>
                         <textarea id="apptNotes" class="form-control" rows="2"></textarea>
                     </div>
+                    <button type="submit" class="d-none"></button>
                 </form>
             </div>
             <div class="modal-footer">
@@ -103,7 +116,7 @@
     </div>
 </div>
 
-<!-- Event Detail Modal -->
+<!-- Event Detail / Edit Modal -->
 <div class="modal fade" id="eventDetailModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -113,7 +126,82 @@
             </div>
             <div class="modal-body">
                 <div id="eventBody"></div>
+                <div id="eventEditForm" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label">Customer</label>
+                        <input type="text" id="editCustomerName" class="form-control"
+                               list="calendarCustomerList" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Date & Time</label>
+                        <input type="datetime-local" id="editDatetime" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">End Time</label>
+                        <input type="datetime-local" id="editEndDatetime" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Purpose</label>
+                        <input type="text" id="editPurpose" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea id="editNotes" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
                 <div class="appt-actions" id="eventActions"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Note Modal -->
+<div class="modal fade" id="noteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="noteModalTitle">Add Note</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="noteForm" onsubmit="event.preventDefault(); saveNote();">
+                    <input type="hidden" id="noteId" value="">
+                    <div class="mb-3">
+                        <label class="form-label">Date</label>
+                        <input type="date" id="noteDate" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Time <small class="text-muted">(optional)</small></label>
+                        <input type="time" id="noteTime" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Note</label>
+                        <textarea id="noteContent" class="form-control" rows="3" required placeholder="Write your note..."></textarea>
+                    </div>
+                    <button type="submit" class="d-none"></button>
+                </form>
+            </div>
+            <div class="modal-footer" id="noteActions">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveNote()">Save Note</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Note Detail Modal (click on note event) -->
+<div class="modal fade" id="noteDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-sticky"></i> Note</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="noteDetailBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary btn-sm" id="noteEditBtn">Edit</button>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="noteDeleteBtn">Delete</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -125,13 +213,47 @@
 <script>
 let calendar;
 let currentEventId = null;
+let currentEventData = null;
+let editMode = false;
+let dayNotes = [];
 
 document.addEventListener('DOMContentLoaded', function() {
     const el = document.getElementById('calendar');
     calendar = new FullCalendar.Calendar(el, {
         initialView: 'dayGridMonth',
-        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
-        events: { url: '/frontdesk/appointments/api/', failure: function() { alert('Error loading events'); } },
+        headerToolbar: {
+            left: 'prev,next today addNoteBtn',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        customButtons: {
+            addNoteBtn: {
+                text: '+ Note',
+                click: function() {
+                    openNewNote();
+                }
+            }
+        },
+        eventSources: [
+            { url: '/frontdesk/appointments/api/', failure: function() { alert('Error loading events'); } },
+            { url: '/frontdesk/notes/api/', id: 'notes', failure: function() {} ,
+              success: function(rawEvents) {
+                  dayNotes = rawEvents;
+                  return rawEvents.map(function(n) {
+                      var start = n.date;
+                      if (n.time) start += 'T' + n.time;
+                      return {
+                          id: 'note-' + n.id,
+                          title: n.content,
+                          start: start,
+                          allDay: !n.time,
+                          display: 'auto',
+                          extendedProps: { type: 'note', noteId: n.id, content: n.content, date: n.date, time: n.time }
+                      };
+                  });
+              }
+            }
+        ],
         slotDuration: '00:15:00',
         slotMinTime: '06:00:00',
         slotMaxTime: '20:00:00',
@@ -140,19 +262,27 @@ document.addEventListener('DOMContentLoaded', function() {
         selectMirror: true,
         dayMaxEvents: true,
         eventClassNames: function(arg) {
-            var status = (arg.event.extendedProps || {}).status || 'SCHEDULED';
+            var props = arg.event.extendedProps || {};
+            if (props.type === 'note') return ['ev-note'];
+            var status = props.status || 'SCHEDULED';
             return ['st-' + status];
         },
         eventContent: function(arg) {
             var props = arg.event.extendedProps || {};
-            var timeText = arg.timeText || '';
-            var name = props.customer_name || '';
-            var purpose = props.purpose || arg.event.title || '';
             var el = document.createElement('div');
             el.style.overflow = 'hidden';
             el.style.whiteSpace = 'nowrap';
             el.style.textOverflow = 'ellipsis';
             el.style.width = '100%';
+
+            if (props.type === 'note') {
+                el.innerHTML = '<i class="bi bi-sticky"></i> ' + (props.content || arg.event.title || '');
+                return { domNodes: [el] };
+            }
+
+            var timeText = arg.timeText || '';
+            var name = props.customer_name || '';
+            var purpose = props.purpose || arg.event.title || '';
             if (timeText) {
                 el.innerHTML = '<b>' + timeText + '</b> ' + name + ' - ' + purpose;
             } else {
@@ -161,51 +291,51 @@ document.addEventListener('DOMContentLoaded', function() {
             return { domNodes: [el] };
         },
         select: function(info) {
+            document.getElementById('apptCustomerName').value = '';
+            document.getElementById('apptPurpose').value = '';
+            document.getElementById('apptNotes').value = '';
             document.getElementById('apptDatetime').value = info.startStr.slice(0, 16);
             if (info.endStr) document.getElementById('apptEndDatetime').value = info.endStr.slice(0, 16);
             new bootstrap.Modal(document.getElementById('appointmentModal')).show();
+            setTimeout(function() { document.getElementById('apptCustomerName').focus(); }, 300);
         },
         eventClick: function(info) {
-            var props = info.event.extendedProps;
-            currentEventId = info.event.id;
-            var status = props.status || 'SCHEDULED';
+            var props = info.event.extendedProps || {};
 
-            document.getElementById('eventTitle').textContent = info.event.title;
-
-            var statusBadge = '<span class="status-badge status-' + status + '">' + status.replace('_', ' ') + '</span>';
-
-            document.getElementById('eventBody').innerHTML =
-                '<p><strong>Customer:</strong> ' + (props.customer_name || '') + '</p>' +
-                '<p><strong>Purpose:</strong> ' + (props.purpose || '') + '</p>' +
-                '<p><strong>Location:</strong> ' + (props.location || '') + '</p>' +
-                '<p><strong>Status:</strong> ' + statusBadge + '</p>' +
-                '<p><strong>Notes:</strong> ' + (props.notes || 'None') + '</p>' +
-                '<p><strong>Time:</strong> ' + info.event.start.toLocaleString() +
-                (info.event.end ? ' - ' + info.event.end.toLocaleTimeString() : '') + '</p>';
-
-            // Build action buttons based on current status
-            var actions = '';
-            if (status === 'SCHEDULED') {
-                actions += '<button class="btn btn-success" onclick="updateStatus(\'CONFIRMED\')"><i class="bi bi-check-lg"></i> Confirm</button>';
-                actions += '<button class="btn btn-danger" onclick="updateStatus(\'CANCELED\')"><i class="bi bi-x-lg"></i> Cancel</button>';
-            } else if (status === 'CONFIRMED') {
-                actions += '<button class="btn btn-secondary" onclick="updateStatus(\'COMPLETED\')"><i class="bi bi-check-circle"></i> Complete</button>';
-                actions += '<button class="btn btn-warning" onclick="updateStatus(\'NO_SHOW\')"><i class="bi bi-person-x"></i> No Show</button>';
-                actions += '<button class="btn btn-danger" onclick="updateStatus(\'CANCELED\')"><i class="bi bi-x-lg"></i> Cancel</button>';
-            } else if (status === 'CANCELED') {
-                actions += '<button class="btn btn-primary" onclick="updateStatus(\'SCHEDULED\')"><i class="bi bi-arrow-counterclockwise"></i> Reschedule</button>';
-            } else if (status === 'COMPLETED') {
-                actions += '<button class="btn btn-outline-secondary" disabled><i class="bi bi-check-circle"></i> Completed</button>';
-            } else if (status === 'NO_SHOW') {
-                actions += '<button class="btn btn-primary" onclick="updateStatus(\'SCHEDULED\')"><i class="bi bi-arrow-counterclockwise"></i> Reschedule</button>';
+            // Notes: show note detail modal
+            if (props.type === 'note') {
+                showNoteDetail(props.noteId, props.content, props.date, props.time);
+                return;
             }
-            actions += '<button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>';
 
-            document.getElementById('eventActions').innerHTML = actions;
-
-            new bootstrap.Modal(document.getElementById('eventDetailModal')).show();
+            // Appointments: show detail/edit modal
+            currentEventId = info.event.id;
+            currentEventData = {
+                customer_name: props.customer_name || '',
+                purpose: props.purpose || '',
+                location: props.location || '',
+                notes: props.notes || '',
+                status: props.status || 'SCHEDULED',
+                start: info.event.start,
+                end: info.event.end
+            };
+            showEventDetail();
         },
         eventDrop: function(info) {
+            var props = info.event.extendedProps || {};
+            if (props.type === 'note') {
+                // Update note date/time
+                var newDate = info.event.start;
+                var dateStr = newDate.getFullYear() + '-' + String(newDate.getMonth()+1).padStart(2,'0') + '-' + String(newDate.getDate()).padStart(2,'0');
+                var timeStr = info.event.allDay ? '' : String(newDate.getHours()).padStart(2,'0') + ':' + String(newDate.getMinutes()).padStart(2,'0');
+                fetch('/frontdesk/notes/api/', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ id: props.noteId, date: dateStr, time: timeStr || null })
+                });
+                return;
+            }
             fetch('/frontdesk/appointments/api/', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
@@ -219,8 +349,156 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     calendar.render();
+
+    // Fast entry: Customer → Tab → Purpose → Tab → Notes → Enter submits
+    document.getElementById('apptCustomerName').addEventListener('keydown', function(e) {
+        if (e.key === 'Tab' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('apptPurpose').focus();
+        }
+        if (e.key === 'Enter') { e.preventDefault(); saveAppointment(); }
+    });
+    document.getElementById('apptPurpose').addEventListener('keydown', function(e) {
+        if (e.key === 'Tab' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('apptNotes').focus();
+        }
+        if (e.key === 'Enter') { e.preventDefault(); saveAppointment(); }
+    });
+    document.getElementById('apptNotes').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveAppointment(); }
+    });
 });
 
+// ─── Event Detail (View) ───
+function showEventDetail() {
+    editMode = false;
+    document.getElementById('eventEditForm').style.display = 'none';
+    document.getElementById('eventBody').style.display = '';
+
+    var d = currentEventData;
+    var status = d.status;
+    var statusBadge = '<span class="status-badge status-' + status + '">' + status.replace('_', ' ') + '</span>';
+    var timeStr = d.start ? d.start.toLocaleString() : '';
+    if (d.end) timeStr += ' - ' + d.end.toLocaleTimeString();
+
+    document.getElementById('eventTitle').textContent = d.customer_name + ' - ' + d.purpose;
+    document.getElementById('eventBody').innerHTML =
+        '<p><strong>Customer:</strong> ' + d.customer_name + '</p>' +
+        '<p><strong>Purpose:</strong> ' + d.purpose + '</p>' +
+        '<p><strong>Location:</strong> ' + d.location + '</p>' +
+        '<p><strong>Status:</strong> ' + statusBadge + '</p>' +
+        '<p><strong>Notes:</strong> ' + (d.notes || 'None') + '</p>' +
+        '<p><strong>Time:</strong> ' + timeStr + '</p>';
+
+    // Build action buttons
+    var actions = '';
+    if (status === 'SCHEDULED') {
+        actions += '<button class="btn btn-success" onclick="updateStatus(\'CONFIRMED\')"><i class="bi bi-check-lg"></i> Confirm</button>';
+        actions += '<button class="btn btn-danger" onclick="updateStatus(\'CANCELED\')"><i class="bi bi-x-lg"></i> Cancel</button>';
+    } else if (status === 'CONFIRMED') {
+        actions += '<button class="btn btn-secondary" onclick="updateStatus(\'COMPLETED\')"><i class="bi bi-check-circle"></i> Complete</button>';
+        actions += '<button class="btn btn-warning" onclick="updateStatus(\'NO_SHOW\')"><i class="bi bi-person-x"></i> No Show</button>';
+        actions += '<button class="btn btn-danger" onclick="updateStatus(\'CANCELED\')"><i class="bi bi-x-lg"></i> Cancel</button>';
+    } else if (status === 'CANCELED') {
+        actions += '<button class="btn btn-primary" onclick="updateStatus(\'SCHEDULED\')"><i class="bi bi-arrow-counterclockwise"></i> Reschedule</button>';
+    } else if (status === 'NO_SHOW') {
+        actions += '<button class="btn btn-primary" onclick="updateStatus(\'SCHEDULED\')"><i class="bi bi-arrow-counterclockwise"></i> Reschedule</button>';
+    }
+    actions += '<button class="btn btn-outline-primary" onclick="startEdit()"><i class="bi bi-pencil"></i> Edit</button>';
+    actions += '<button class="btn btn-outline-danger" onclick="deleteAppointment()"><i class="bi bi-trash"></i> Delete</button>';
+    actions += '<button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>';
+    document.getElementById('eventActions').innerHTML = actions;
+
+    new bootstrap.Modal(document.getElementById('eventDetailModal')).show();
+}
+
+// ─── Edit Mode ───
+function startEdit() {
+    editMode = true;
+    document.getElementById('eventBody').style.display = 'none';
+    document.getElementById('eventEditForm').style.display = '';
+    document.getElementById('eventTitle').textContent = 'Edit Appointment';
+
+    var d = currentEventData;
+    document.getElementById('editCustomerName').value = d.customer_name;
+    document.getElementById('editPurpose').value = d.purpose;
+    document.getElementById('editNotes').value = d.notes || '';
+    if (d.start) {
+        var s = d.start;
+        document.getElementById('editDatetime').value =
+            s.getFullYear() + '-' + String(s.getMonth()+1).padStart(2,'0') + '-' +
+            String(s.getDate()).padStart(2,'0') + 'T' +
+            String(s.getHours()).padStart(2,'0') + ':' + String(s.getMinutes()).padStart(2,'0');
+    }
+    if (d.end) {
+        var e = d.end;
+        document.getElementById('editEndDatetime').value =
+            e.getFullYear() + '-' + String(e.getMonth()+1).padStart(2,'0') + '-' +
+            String(e.getDate()).padStart(2,'0') + 'T' +
+            String(e.getHours()).padStart(2,'0') + ':' + String(e.getMinutes()).padStart(2,'0');
+    }
+
+    var actions = '';
+    actions += '<button class="btn btn-primary" onclick="saveEdit()"><i class="bi bi-check-lg"></i> Save Changes</button>';
+    actions += '<button class="btn btn-outline-secondary" onclick="showEventDetail()">Cancel Edit</button>';
+    document.getElementById('eventActions').innerHTML = actions;
+}
+
+function saveEdit() {
+    var body = { id: currentEventId };
+    var name = document.getElementById('editCustomerName').value.trim();
+    var purpose = document.getElementById('editPurpose').value.trim();
+    var notes = document.getElementById('editNotes').value.trim();
+    var dt = document.getElementById('editDatetime').value;
+    var endDt = document.getElementById('editEndDatetime').value;
+
+    if (name) body.customer_name = name;
+    if (purpose) body.purpose = purpose;
+    body.notes = notes;
+    if (dt) body.datetime = new Date(dt).toISOString();
+    if (endDt) body.end_datetime = new Date(endDt).toISOString();
+
+    fetch('/frontdesk/appointments/api/', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify(body)
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+    }).then(function(d) {
+        if (d.status === 'updated') {
+            bootstrap.Modal.getInstance(document.getElementById('eventDetailModal')).hide();
+            calendar.refetchEvents();
+        }
+    }).catch(function(err) {
+        alert('Failed to save: ' + err.message);
+    });
+}
+
+// ─── Delete Appointment ───
+function deleteAppointment() {
+    if (!confirm('Permanently delete this appointment? This cannot be undone.')) return;
+    fetch('/frontdesk/appointments/api/', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify({ id: currentEventId })
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+    }).then(function(d) {
+        if (d.status === 'deleted') {
+            bootstrap.Modal.getInstance(document.getElementById('eventDetailModal')).hide();
+            calendar.refetchEvents();
+        }
+    }).catch(function(err) {
+        alert('Failed to delete: ' + err.message);
+    });
+}
+
+// ─── Status Update ───
 function updateStatus(newStatus) {
     if (!currentEventId) return;
     fetch('/frontdesk/appointments/api/', {
@@ -241,40 +519,37 @@ function updateStatus(newStatus) {
     });
 }
 
+// ─── Save New Appointment ───
 function saveAppointment() {
-    const customerName = document.getElementById('apptCustomerName').value.trim();
-    const datetimeVal = document.getElementById('apptDatetime').value;
-    const endDatetimeVal = document.getElementById('apptEndDatetime').value;
-    const purpose = document.getElementById('apptPurpose').value.trim();
+    var customerName = document.getElementById('apptCustomerName').value.trim();
+    var datetimeVal = document.getElementById('apptDatetime').value;
+    var endDatetimeVal = document.getElementById('apptEndDatetime').value;
+    var purpose = document.getElementById('apptPurpose').value.trim();
 
     if (!customerName || !datetimeVal || !purpose) {
         alert('Customer, date/time, and purpose are required.');
         return;
     }
 
-    // Check if typed name matches an existing customer for ID lookup
-    let customerId = '';
+    var customerId = '';
     document.querySelectorAll('#calendarCustomerList option').forEach(function(opt) {
         if (opt.value.toLowerCase() === customerName.toLowerCase()) {
             customerId = opt.dataset.id;
         }
     });
 
-    // Send as UTC ISO datetime to avoid timezone mismatch
-    const startDt = new Date(datetimeVal);
-    const isoStart = startDt.toISOString();
-
-    // Calculate duration from start/end (default 30 min)
-    let duration = 30;
-    let isoEnd = '';
+    var startDt = new Date(datetimeVal);
+    var isoStart = startDt.toISOString();
+    var duration = 30;
+    var isoEnd = '';
     if (endDatetimeVal) {
-        const endDt = new Date(endDatetimeVal);
+        var endDt = new Date(endDatetimeVal);
         isoEnd = endDt.toISOString();
         duration = Math.round((endDt.getTime() - startDt.getTime()) / 60000);
         if (duration <= 0) duration = 30;
     }
 
-    const formData = new FormData();
+    var formData = new FormData();
     formData.append('customer', customerId);
     formData.append('customer_name', customerName);
     formData.append('iso_datetime', isoStart);
@@ -295,13 +570,111 @@ function saveAppointment() {
             bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
             calendar.refetchEvents();
             document.getElementById('appointmentForm').reset();
-            document.getElementById('apptLocation').value = 'J. Austin Office';
         } else {
             alert('Error: ' + JSON.stringify(d.errors));
         }
     }).catch(function(err) {
         alert('Failed to save appointment: ' + err.message);
     });
+}
+
+// ─── Notes ───
+function openNewNote(dateStr) {
+    document.getElementById('noteId').value = '';
+    document.getElementById('noteModalTitle').textContent = 'Add Note';
+    document.getElementById('noteContent').value = '';
+    document.getElementById('noteTime').value = '';
+
+    if (!dateStr) {
+        var plannerDate = document.querySelector('.fc-day-today');
+        var now = new Date();
+        dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    }
+    document.getElementById('noteDate').value = dateStr;
+
+    var footer = document.getElementById('noteActions');
+    footer.innerHTML =
+        '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
+        '<button type="button" class="btn btn-primary" onclick="saveNote()">Save Note</button>';
+
+    new bootstrap.Modal(document.getElementById('noteModal')).show();
+    setTimeout(function() { document.getElementById('noteContent').focus(); }, 300);
+}
+
+function saveNote() {
+    var noteId = document.getElementById('noteId').value;
+    var date = document.getElementById('noteDate').value;
+    var time = document.getElementById('noteTime').value;
+    var content = document.getElementById('noteContent').value.trim();
+
+    if (!date || !content) {
+        alert('Date and note content are required.');
+        return;
+    }
+
+    var method = noteId ? 'PUT' : 'POST';
+    var body = { date: date, time: time || null, content: content };
+    if (noteId) body.id = parseInt(noteId);
+
+    fetch('/frontdesk/notes/api/', {
+        method: method,
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify(body)
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+    }).then(function(d) {
+        if (d.status === 'created' || d.status === 'updated') {
+            bootstrap.Modal.getInstance(document.getElementById('noteModal')).hide();
+            calendar.refetchEvents();
+        }
+    }).catch(function(err) {
+        alert('Failed to save note: ' + err.message);
+    });
+}
+
+function showNoteDetail(noteId, content, date, time) {
+    var timeStr = time ? ' at ' + time : '';
+    document.getElementById('noteDetailBody').innerHTML =
+        '<p>' + content.replace(/\n/g, '<br>') + '</p>' +
+        '<small class="text-muted">' + date + timeStr + '</small>';
+
+    document.getElementById('noteEditBtn').onclick = function() {
+        bootstrap.Modal.getInstance(document.getElementById('noteDetailModal')).hide();
+        document.getElementById('noteId').value = noteId;
+        document.getElementById('noteModalTitle').textContent = 'Edit Note';
+        document.getElementById('noteDate').value = date;
+        document.getElementById('noteTime').value = time || '';
+        document.getElementById('noteContent').value = content;
+        var footer = document.getElementById('noteActions');
+        footer.innerHTML =
+            '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
+            '<button type="button" class="btn btn-primary" onclick="saveNote()">Save Note</button>';
+        new bootstrap.Modal(document.getElementById('noteModal')).show();
+    };
+
+    document.getElementById('noteDeleteBtn').onclick = function() {
+        if (!confirm('Delete this note?')) return;
+        fetch('/frontdesk/notes/api/', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            credentials: 'same-origin',
+            body: JSON.stringify({ id: noteId })
+        }).then(function(r) {
+            if (!r.ok) throw new Error('Server error ' + r.status);
+            return r.json();
+        }).then(function(d) {
+            if (d.status === 'deleted') {
+                bootstrap.Modal.getInstance(document.getElementById('noteDetailModal')).hide();
+                calendar.refetchEvents();
+            }
+        }).catch(function(err) {
+            alert('Failed to delete: ' + err.message);
+        });
+    };
+
+    new bootstrap.Modal(document.getElementById('noteDetailModal')).show();
 }
 </script>
 {% endblock %}

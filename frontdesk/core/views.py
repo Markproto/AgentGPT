@@ -21,7 +21,7 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST, require_http_methods
 
 from .forms import CustomerForm, AppointmentForm, TextTemplateForm, SendTextForm, LoginForm
-from .models import Customer, Interaction, TextTemplate, Match, Appointment, CallLog
+from .models import Customer, Interaction, TextTemplate, Match, Appointment, CallLog, DayNote
 
 logger = logging.getLogger(__name__)
 
@@ -620,6 +620,21 @@ def appointment_api(request):
                 appt.status = body["status"]
             if "notes" in body:
                 appt.notes = body["notes"]
+            if "purpose" in body:
+                appt.purpose = body["purpose"]
+            if "location" in body:
+                appt.location = body["location"]
+            if "customer_name" in body:
+                name = body["customer_name"].strip()
+                if name:
+                    cust = Customer.objects.filter(name__iexact=name).first()
+                    if not cust:
+                        cust = Customer.objects.create(
+                            name=name,
+                            source=Customer.Source.WALK_IN,
+                            status=Customer.Status.ACTIVE,
+                        )
+                    appt.customer = cust
 
             appt.save()
             return JsonResponse({"status": "updated"})
@@ -632,6 +647,91 @@ def appointment_api(request):
             appt_id = body.get("id")
             appt = get_object_or_404(Appointment, pk=appt_id)
             appt.delete()
+            return JsonResponse({"status": "deleted"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(["GET", "POST", "PUT", "DELETE"])
+def notes_api(request):
+    """JSON API for day notes."""
+    if request.method == "GET":
+        start = request.GET.get("start", "")
+        end = request.GET.get("end", "")
+        notes = DayNote.objects.all()
+        if start:
+            notes = notes.filter(date__gte=start[:10])
+        if end:
+            notes = notes.filter(date__lte=end[:10])
+        result = []
+        for note in notes:
+            result.append({
+                "id": note.id,
+                "date": note.date.isoformat(),
+                "time": note.time.strftime("%H:%M") if note.time else None,
+                "content": note.content,
+            })
+        return JsonResponse(result, safe=False)
+
+    elif request.method == "POST":
+        try:
+            body = json.loads(request.body)
+        except json.JSONDecodeError:
+            body = {}
+            body["date"] = request.POST.get("date", "")
+            body["time"] = request.POST.get("time", "")
+            body["content"] = request.POST.get("content", "")
+
+        from datetime import date as date_cls, time as time_cls
+        from dateutil.parser import parse as dt_parse
+
+        date_str = body.get("date", "")
+        time_str = body.get("time", "")
+        content = body.get("content", "").strip()
+        if not date_str or not content:
+            return JsonResponse({"error": "Date and content are required."}, status=400)
+
+        try:
+            note_date = dt_parse(date_str).date()
+        except Exception:
+            return JsonResponse({"error": "Invalid date."}, status=400)
+
+        note_time = None
+        if time_str:
+            try:
+                note_time = dt_parse(time_str).time()
+            except Exception:
+                pass
+
+        note = DayNote.objects.create(date=note_date, time=note_time, content=content)
+        return JsonResponse({"status": "created", "id": note.id})
+
+    elif request.method == "PUT":
+        try:
+            body = json.loads(request.body)
+            note = get_object_or_404(DayNote, pk=body.get("id"))
+            if "content" in body:
+                note.content = body["content"]
+            if "date" in body:
+                from dateutil.parser import parse as dt_parse
+                note.date = dt_parse(body["date"]).date()
+            if "time" in body:
+                if body["time"]:
+                    from dateutil.parser import parse as dt_parse
+                    note.time = dt_parse(body["time"]).time()
+                else:
+                    note.time = None
+            note.save()
+            return JsonResponse({"status": "updated"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+    elif request.method == "DELETE":
+        try:
+            body = json.loads(request.body)
+            note = get_object_or_404(DayNote, pk=body.get("id"))
+            note.delete()
             return JsonResponse({"status": "deleted"})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
