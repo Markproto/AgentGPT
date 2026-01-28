@@ -13,7 +13,7 @@ services:
       frontdesk-redis:
         condition: service_started
     volumes:
-      - static_files:/app/staticfiles
+      - ./staticfiles:/app/staticfiles
 
   frontdesk-db:
     image: postgres:15-alpine
@@ -55,4 +55,3 @@ services:
 
 volumes:
   frontdesk_pgdata:
-  static_files:
