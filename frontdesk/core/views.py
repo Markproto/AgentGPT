@@ -618,6 +618,7 @@ def appointment_api(request):
 
 
 @login_required
+@ensure_csrf_cookie
 def calendar_view(request):
     """Render FullCalendar interface."""
     customers = Customer.objects.all()

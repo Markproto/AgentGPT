@@ -25,32 +25,35 @@
                 <form id="appointmentForm">
                     <div class="mb-3">
                         <label class="form-label">Customer</label>
-                        <select name="customer" id="apptCustomer" class="form-select" required>
-                            <option value="">Select customer...</option>
+                        <input type="text" id="apptCustomerName" class="form-control"
+                               list="calendarCustomerList" required
+                               placeholder="Type any name (new or existing)..." autocomplete="off">
+                        <datalist id="calendarCustomerList">
                             {% for c in customers %}
-                            <option value="{{ c.id }}">{{ c.name }} ({{ c.get_category_display }})</option>
+                            <option data-id="{{ c.id }}" value="{{ c.name }}">{{ c.get_category_display }}</option>
                             {% endfor %}
-                        </select>
+                        </datalist>
+                        <small class="text-muted">New names are added automatically</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Date & Time</label>
-                        <input type="datetime-local" name="datetime" id="apptDatetime" class="form-control" required>
+                        <input type="datetime-local" id="apptDatetime" class="form-control" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">End Time</label>
-                        <input type="datetime-local" name="end_datetime" id="apptEndDatetime" class="form-control">
+                        <input type="datetime-local" id="apptEndDatetime" class="form-control">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Purpose</label>
-                        <input type="text" name="purpose" id="apptPurpose" class="form-control" required placeholder="e.g., Buy 10oz Gold Bullion">
+                        <input type="text" id="apptPurpose" class="form-control" required placeholder="e.g., Buy 10oz Gold Bullion">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Location</label>
-                        <input type="text" name="location" id="apptLocation" class="form-control" value="J. Austin Office">
+                        <input type="text" id="apptLocation" class="form-control" value="J. Austin Office">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Notes</label>
-                        <textarea name="notes" id="apptNotes" class="form-control" rows="2"></textarea>
+                        <textarea id="apptNotes" class="form-control" rows="2"></textarea>
                     </div>
                 </form>
             </div>
@@ -127,21 +130,71 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function saveAppointment() {
-    const form = document.getElementById('appointmentForm');
-    const formData = new FormData(form);
+    const customerName = document.getElementById('apptCustomerName').value.trim();
+    const datetimeVal = document.getElementById('apptDatetime').value;
+    const endDatetimeVal = document.getElementById('apptEndDatetime').value;
+    const purpose = document.getElementById('apptPurpose').value.trim();
+
+    if (!customerName || !datetimeVal || !purpose) {
+        alert('Customer, date/time, and purpose are required.');
+        return;
+    }
+
+    // Check if typed name matches an existing customer for ID lookup
+    let customerId = '';
+    document.querySelectorAll('#calendarCustomerList option').forEach(function(opt) {
+        if (opt.value.toLowerCase() === customerName.toLowerCase()) {
+            customerId = opt.dataset.id;
+        }
+    });
+
+    // Split datetime-local into date and 12h time for backend
+    const dtParts = datetimeVal.split('T');
+    const apptDate = dtParts[0];
+    const timeParts = dtParts[1].split(':');
+    let h = parseInt(timeParts[0]);
+    const m = timeParts[1];
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    if (h > 12) h -= 12;
+    if (h === 0) h = 12;
+    const apptTime = h + ':' + m + ' ' + ampm;
+
+    // Calculate duration from start/end (default 30 min)
+    let duration = 30;
+    if (endDatetimeVal) {
+        const startMs = new Date(datetimeVal).getTime();
+        const endMs = new Date(endDatetimeVal).getTime();
+        duration = Math.round((endMs - startMs) / 60000);
+        if (duration <= 0) duration = 30;
+    }
+
+    const formData = new FormData();
+    formData.append('customer', customerId);
+    formData.append('customer_name', customerName);
+    formData.append('appt_date', apptDate);
+    formData.append('appt_time', apptTime);
+    formData.append('purpose', purpose);
+    formData.append('duration', duration);
+
     fetch('/frontdesk/appointments/create/', {
         method: 'POST',
         headers: { 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
         body: formData
-    }).then(r => r.json()).then(d => {
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+    }).then(function(d) {
         if (d.status === 'created') {
             bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
             calendar.refetchEvents();
-            form.reset();
+            document.getElementById('appointmentForm').reset();
+            document.getElementById('apptLocation').value = 'J. Austin Office';
         } else {
             alert('Error: ' + JSON.stringify(d.errors));
         }
+    }).catch(function(err) {
+        alert('Failed to save appointment: ' + err.message);
     });
 }
 </script>
