@@ -114,6 +114,7 @@ echo -e "${GREEN}✓ CRM containers started${NC}"
 echo -e "\n${YELLOW}Step 5: Running database migrations...${NC}"
 
 sleep 10  # Wait for DB to start
+docker compose exec -T frontdesk-web python manage.py makemigrations core --noinput
 docker compose exec -T frontdesk-web python manage.py migrate
 docker compose exec -T frontdesk-web python manage.py collectstatic --noinput
 
