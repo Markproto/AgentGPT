@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Calendar - J. Austin{% endblock %}
+{% block page_title %}Calendar{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div id="calendar"></div>
+    </div>
+</div>
+
+<!-- New Appointment Modal -->
+<div class="modal fade" id="appointmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">New Appointment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="appointmentForm">
+                    <div class="mb-3">
+                        <label class="form-label">Customer</label>
+                        <select name="customer" id="apptCustomer" class="form-select" required>
+                            <option value="">Select customer...</option>
+                            {% for c in customers %}
+                            <option value="{{ c.id }}">{{ c.name }} ({{ c.get_category_display }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Date & Time</label>
+                        <input type="datetime-local" name="datetime" id="apptDatetime" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">End Time</label>
+                        <input type="datetime-local" name="end_datetime" id="apptEndDatetime" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Purpose</label>
+                        <input type="text" name="purpose" id="apptPurpose" class="form-control" required placeholder="e.g., Buy 10oz Gold Bullion">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Location</label>
+                        <input type="text" name="location" id="apptLocation" class="form-control" value="J. Austin Office">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea name="notes" id="apptNotes" class="form-control" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveAppointment()">Save Appointment</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Detail Modal -->
+<div class="modal fade" id="eventDetailModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="eventBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+<script>
+let calendar;
+document.addEventListener('DOMContentLoaded', function() {
+    const el = document.getElementById('calendar');
+    calendar = new FullCalendar.Calendar(el, {
+        initialView: 'dayGridMonth',
+        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
+        events: { url: '/frontdesk/appointments/api/', failure: () => alert('Error loading events') },
+        editable: true,
+        selectable: true,
+        selectMirror: true,
+        dayMaxEvents: true,
+        select: function(info) {
+            document.getElementById('apptDatetime').value = info.startStr.slice(0, 16);
+            if (info.endStr) document.getElementById('apptEndDatetime').value = info.endStr.slice(0, 16);
+            new bootstrap.Modal(document.getElementById('appointmentModal')).show();
+        },
+        eventClick: function(info) {
+            const props = info.event.extendedProps;
+            document.getElementById('eventTitle').textContent = info.event.title;
+            document.getElementById('eventBody').innerHTML =
+                '<p><strong>Customer:</strong> ' + props.customer_name + '</p>' +
+                '<p><strong>Purpose:</strong> ' + props.purpose + '</p>' +
+                '<p><strong>Location:</strong> ' + props.location + '</p>' +
+                '<p><strong>Status:</strong> ' + props.status + '</p>' +
+                '<p><strong>Notes:</strong> ' + (props.notes || 'None') + '</p>' +
+                '<p><strong>Time:</strong> ' + info.event.start.toLocaleString() + '</p>';
+            new bootstrap.Modal(document.getElementById('eventDetailModal')).show();
+        },
+        eventDrop: function(info) {
+            fetch('/frontdesk/appointments/api/', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    id: info.event.id,
+                    datetime: info.event.start.toISOString(),
+                    end_datetime: info.event.end ? info.event.end.toISOString() : null
+                })
+            });
+        }
+    });
+    calendar.render();
+});
+
+function saveAppointment() {
+    const form = document.getElementById('appointmentForm');
+    const formData = new FormData(form);
+    fetch('/frontdesk/appointments/create/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: formData
+    }).then(r => r.json()).then(d => {
+        if (d.status === 'created') {
+            bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
+            calendar.refetchEvents();
+            form.reset();
+        } else {
+            alert('Error: ' + JSON.stringify(d.errors));
+        }
+    });
+}
+</script>
+{% endblock %}

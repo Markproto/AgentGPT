@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.name }} - J. Austin{% endblock %}
+{% block page_title %}Customer: {{ customer.name }}{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <strong>Customer Details</strong>
+                <span class="badge badge-{{ customer.status|lower }}">{{ customer.get_status_display }}</span>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {% for field in form %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+                    </div>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <a href="/frontdesk/customers/" class="btn btn-outline-secondary">Back to List</a>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-7">
+        <!-- Interactions -->
+        <div class="card mb-3">
+            <div class="card-header"><strong>Recent Interactions</strong></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Date</th><th>Type</th><th>Direction</th><th>Summary</th></tr></thead>
+                    <tbody>
+                        {% for i in interactions %}
+                        <tr>
+                            <td>{{ i.created_at|date:"M d, H:i" }}</td>
+                            <td><span class="badge bg-secondary">{{ i.get_type_display }}</span></td>
+                            <td>{{ i.get_direction_display }}</td>
+                            <td>{{ i.summary|truncatewords:15 }}</td>
+                        </tr>
+                        {% empty %}<tr><td colspan="4" class="text-muted text-center">No interactions</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- Appointments -->
+        <div class="card mb-3">
+            <div class="card-header"><strong>Appointments</strong></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Date</th><th>Purpose</th><th>Status</th></tr></thead>
+                    <tbody>
+                        {% for a in appointments %}
+                        <tr>
+                            <td>{{ a.datetime|date:"M d, H:i" }}</td>
+                            <td>{{ a.purpose }}</td>
+                            <td><span class="badge bg-info">{{ a.get_status_display }}</span></td>
+                        </tr>
+                        {% empty %}<tr><td colspan="3" class="text-muted text-center">No appointments</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- Matches -->
+        <div class="card">
+            <div class="card-header"><strong>Matches</strong></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Partner</th><th>Amount</th><th>Type</th><th>Status</th></tr></thead>
+                    <tbody>
+                        {% for m in matches_as_buyer %}
+                        <tr><td>{{ m.seller.name }}</td><td>{{ m.amount }} oz</td><td>{{ m.bullion_type }}</td><td>{{ m.get_status_display }}</td></tr>
+                        {% endfor %}
+                        {% for m in matches_as_seller %}
+                        <tr><td>{{ m.buyer.name }}</td><td>{{ m.amount }} oz</td><td>{{ m.bullion_type }}</td><td>{{ m.get_status_display }}</td></tr>
+                        {% endfor %}
+                        {% if not matches_as_buyer and not matches_as_seller %}
+                        <tr><td colspan="4" class="text-muted text-center">No matches</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

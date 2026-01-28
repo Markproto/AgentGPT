@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}Texting - J. Austin{% endblock %}
+{% block page_title %}Texting{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Compose Panel -->
+    <div class="col-lg-5">
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-chat-dots"></i> Compose Message
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Recipients</label>
+                    <select id="recipientSelect" class="form-select" multiple size="5">
+                        {% for c in customers %}
+                        <option value="{{ c.id }}">{{ c.name }} - {{ c.phone|default:c.email|default:"No contact" }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Quick Select by Category</label>
+                    <select id="categoryFilter" class="form-select form-select-sm" onchange="filterRecipients(this.value)">
+                        <option value="">-- Filter by Category --</option>
+                        {% for val, label in categories %}
+                        <option value="{{ val }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Template</label>
+                    <select id="templateSelect" class="form-select form-select-sm" onchange="loadTemplate(this.value)">
+                        <option value="">-- Use a Template --</option>
+                        {% for t in templates %}
+                        <option value="{{ t.id }}">{{ t.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Message</label>
+                    <textarea id="messageText" class="form-control" rows="5" placeholder="Type your message..."></textarea>
+                    <div class="d-flex justify-content-between mt-1">
+                        <small class="text-muted"><span id="charCount">0</span> characters</small>
+                        <small class="text-muted">SMS limit: 160 chars</small>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" onclick="sendMessage()">
+                        <i class="bi bi-send"></i> Send Message
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="selectAllRecipients()">
+                        Select All Recipients
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-file-text"></i> Manage Templates
+            </div>
+            <div class="card-body">
+                <a href="{% url 'template_manage' %}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-gear"></i> Manage Text Templates
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Messages -->
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clock-history"></i> Recent Text Messages
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Customer</th>
+                                <th>Direction</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for text in recent_texts %}
+                            <tr>
+                                <td><small>{{ text.created_at|date:"M d, g:i A" }}</small></td>
+                                <td>
+                                    {% if text.customer %}
+                                    <a href="{% url 'customer_detail' text.customer.id %}">{{ text.customer.name }}</a>
+                                    {% else %}
+                                    <span class="text-muted">Unknown</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if text.direction == 'INBOUND' %}
+                                    <span class="badge bg-info">In</span>
+                                    {% else %}
+                                    <span class="badge bg-success">Out</span>
+                                    {% endif %}
+                                </td>
+                                <td><small>{{ text.summary|truncatewords:20 }}</small></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-4">No text messages yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Send Result Modal -->
+<div class="modal fade" id="sendResultModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Send Result</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="sendResultBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Character counter
+document.getElementById('messageText').addEventListener('input', function() {
+    document.getElementById('charCount').textContent = this.value.length;
+});
+
+// Customer data for filtering
+const allCustomers = [
+    {% for c in customers %}
+    { id: {{ c.id }}, name: "{{ c.name|escapejs }}", phone: "{{ c.phone|escapejs }}", email: "{{ c.email|escapejs }}", category: "{{ c.category }}" },
+    {% endfor %}
+];
+
+function filterRecipients(category) {
+    const select = document.getElementById('recipientSelect');
+    select.innerHTML = '';
+    const filtered = category ? allCustomers.filter(c => c.category === category) : allCustomers;
+    filtered.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name + ' - ' + (c.phone || c.email || 'No contact');
+        select.appendChild(opt);
+    });
+}
+
+function selectAllRecipients() {
+    const select = document.getElementById('recipientSelect');
+    for (let opt of select.options) { opt.selected = true; }
+}
+
+function loadTemplate(templateId) {
+    if (!templateId) return;
+    fetch('/frontdesk/texting/templates/api/?id=' + templateId)
+        .then(r => r.json())
+        .then(d => {
+            document.getElementById('messageText').value = d.content;
+            document.getElementById('charCount').textContent = d.content.length;
+        });
+}
+
+function sendMessage() {
+    const select = document.getElementById('recipientSelect');
+    const selectedIds = Array.from(select.selectedOptions).map(o => parseInt(o.value));
+    const message = document.getElementById('messageText').value.trim();
+
+    if (selectedIds.length === 0) {
+        alert('Please select at least one recipient.');
+        return;
+    }
+    if (!message) {
+        alert('Please enter a message.');
+        return;
+    }
+
+    fetch('/frontdesk/texting/send/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify({ customer_ids: selectedIds, message: message })
+    }).then(r => r.json()).then(d => {
+        let html = '';
+        if (d.status === 'success') {
+            html = '<div class="alert alert-success">Sent to ' + d.sent_count + ' recipient(s).</div>';
+            if (d.errors && d.errors.length > 0) {
+                html += '<div class="alert alert-warning">Warnings:<ul>';
+                d.errors.forEach(e => { html += '<li>' + e + '</li>'; });
+                html += '</ul></div>';
+            }
+            document.getElementById('messageText').value = '';
+            document.getElementById('charCount').textContent = '0';
+        } else {
+            html = '<div class="alert alert-danger">Error: ' + (d.error || JSON.stringify(d)) + '</div>';
+        }
+        document.getElementById('sendResultBody').innerHTML = html;
+        new bootstrap.Modal(document.getElementById('sendResultModal')).show();
+    }).catch(err => {
+        alert('Network error: ' + err.message);
+    });
+}
+</script>
+{% endblock %}

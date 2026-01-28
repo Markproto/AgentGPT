@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Text Templates - J. Austin{% endblock %}
+{% block page_title %}Text Templates{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Create / Edit Form -->
+    <div class="col-lg-5">
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-plus-circle"></i> <span id="formTitle">Create Template</span>
+            </div>
+            <div class="card-body">
+                <form method="post" id="templateForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" id="formAction" value="create">
+                    <input type="hidden" name="template_id" id="templateId" value="">
+
+                    <div class="mb-3">
+                        <label class="form-label">Template Name</label>
+                        <input type="text" name="name" id="tplName" class="form-control" required
+                               placeholder="e.g., Price Update Notification">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <select name="category" id="tplCategory" class="form-select" required>
+                            {% for val, label in categories %}
+                            <option value="{{ val }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Content</label>
+                        <textarea name="content" id="tplContent" class="form-control" rows="5" required
+                                  placeholder="Hello {name}, this is J. Austin..."></textarea>
+                        <small class="text-muted">Use {name} for customer name, {amount} for bullion amount</small>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" name="is_active" id="tplActive" class="form-check-input" checked>
+                        <label class="form-check-label" for="tplActive">Active</label>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Save Template</button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">Reset</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template List -->
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-file-text"></i> All Templates
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Content</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tpl in templates %}
+                            <tr>
+                                <td><strong>{{ tpl.name }}</strong></td>
+                                <td>
+                                    <span class="badge bg-info">{{ tpl.get_category_display }}</span>
+                                </td>
+                                <td><small>{{ tpl.content|truncatewords:15 }}</small></td>
+                                <td>
+                                    {% if tpl.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary"
+                                                onclick="editTemplate({{ tpl.id }}, '{{ tpl.name|escapejs }}', '{{ tpl.category }}', '{{ tpl.content|escapejs }}', {{ tpl.is_active|yesno:'true,false' }})">
+                                            Edit
+                                        </button>
+                                        <button class="btn btn-outline-danger" onclick="deleteTemplate({{ tpl.id }}, '{{ tpl.name|escapejs }}')">
+                                            Delete
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">No templates yet. Create one!</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <a href="{% url 'texting' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Back to Texting
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Template</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete "<span id="deleteTemplateName"></span>"?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="post" style="display:inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="template_id" id="deleteTemplateId" value="">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function editTemplate(id, name, category, content, isActive) {
+    document.getElementById('formTitle').textContent = 'Edit Template';
+    document.getElementById('formAction').value = 'update';
+    document.getElementById('templateId').value = id;
+    document.getElementById('tplName').value = name;
+    document.getElementById('tplCategory').value = category;
+    document.getElementById('tplContent').value = content;
+    document.getElementById('tplActive').checked = isActive;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function deleteTemplate(id, name) {
+    document.getElementById('deleteTemplateName').textContent = name;
+    document.getElementById('deleteTemplateId').value = id;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+function resetForm() {
+    document.getElementById('formTitle').textContent = 'Create Template';
+    document.getElementById('formAction').value = 'create';
+    document.getElementById('templateId').value = '';
+    document.getElementById('templateForm').reset();
+    document.getElementById('tplActive').checked = true;
+}
+</script>
+{% endblock %}

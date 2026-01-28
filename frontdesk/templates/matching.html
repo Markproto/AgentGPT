@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Matching - J. Austin{% endblock %}
+{% block page_title %}Bullion Matching{% endblock %}
+
+{% block content %}
+<!-- Balance Sheet -->
+<div class="row g-4 mb-4">
+    {% for type, data in balance.items %}
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-header"><strong>{{ type }}</strong></div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-success"><i class="bi bi-arrow-down-circle"></i> Buy: {{ data.buy }} oz</span>
+                    <span class="text-danger"><i class="bi bi-arrow-up-circle"></i> Sell: {{ data.sell }} oz</span>
+                </div>
+                <div class="text-center">
+                    <strong>Net: <span class="{% if data.net > 0 %}text-success{% elif data.net < 0 %}text-danger{% endif %}">{{ data.net }} oz</span></strong>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Generate Button -->
+<div class="mb-4">
+    <button class="btn btn-warning btn-lg" onclick="generateMatches()" id="generateBtn">
+        <i class="bi bi-lightning"></i> Generate Matches
+    </button>
+    <span id="matchResult" class="ms-3"></span>
+</div>
+
+<!-- Proposed Matches -->
+<div class="card mb-4">
+    <div class="card-header bg-warning text-dark"><strong>Proposed Matches</strong></div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead><tr><th>Buyer</th><th>Seller</th><th>Amount</th><th>Type</th><th>Margin</th><th>Actions</th></tr></thead>
+            <tbody>
+                {% for m in proposed_matches %}
+                <tr id="match-{{ m.id }}">
+                    <td><a href="/frontdesk/customers/{{ m.buyer.id }}/">{{ m.buyer.name }}</a></td>
+                    <td><a href="/frontdesk/customers/{{ m.seller.id }}/">{{ m.seller.name }}</a></td>
+                    <td>{{ m.amount }} oz</td>
+                    <td>{{ m.bullion_type }}</td>
+                    <td>{% if m.profit_margin %}${{ m.profit_margin }}{% else %}-{% endif %}</td>
+                    <td>
+                        <button class="btn btn-success btn-sm" onclick="matchAction({{ m.id }}, 'accept')"><i class="bi bi-check"></i> Accept</button>
+                        <button class="btn btn-danger btn-sm" onclick="matchAction({{ m.id }}, 'cancel')"><i class="bi bi-x"></i> Cancel</button>
+                    </td>
+                </tr>
+                {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No proposed matches. Click "Generate Matches" to find pairs.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Accepted Matches -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white"><strong>Accepted Matches</strong></div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead><tr><th>Buyer</th><th>Seller</th><th>Amount</th><th>Type</th><th>Margin</th><th>Actions</th></tr></thead>
+            <tbody>
+                {% for m in accepted_matches %}
+                <tr>
+                    <td>{{ m.buyer.name }}</td><td>{{ m.seller.name }}</td>
+                    <td>{{ m.amount }} oz</td><td>{{ m.bullion_type }}</td>
+                    <td>{% if m.profit_margin %}${{ m.profit_margin }}{% else %}-{% endif %}</td>
+                    <td><button class="btn btn-outline-success btn-sm" onclick="matchAction({{ m.id }}, 'complete')"><i class="bi bi-check-all"></i> Complete</button></td>
+                </tr>
+                {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No accepted matches</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Completed Matches -->
+<div class="card">
+    <div class="card-header bg-secondary text-white"><strong>Completed Matches</strong></div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead><tr><th>Buyer</th><th>Seller</th><th>Amount</th><th>Type</th><th>Margin</th><th>Date</th></tr></thead>
+            <tbody>
+                {% for m in completed_matches %}
+                <tr>
+                    <td>{{ m.buyer.name }}</td><td>{{ m.seller.name }}</td>
+                    <td>{{ m.amount }} oz</td><td>{{ m.bullion_type }}</td>
+                    <td>{% if m.profit_margin %}${{ m.profit_margin }}{% else %}-{% endif %}</td>
+                    <td>{{ m.created_at|date:"M d, Y" }}</td>
+                </tr>
+                {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No completed matches</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function generateMatches() {
+    const btn = document.getElementById('generateBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass"></i> Generating...';
+    fetch('/frontdesk/matching/generate/', {
+        method: 'POST', headers: { 'X-CSRFToken': csrftoken }, credentials: 'same-origin'
+    }).then(r => r.json()).then(d => {
+        document.getElementById('matchResult').innerHTML =
+            '<span class="badge bg-success fs-6">' + d.matches_created + ' matches created</span>';
+        setTimeout(() => location.reload(), 1500);
+    }).catch(() => {
+        document.getElementById('matchResult').innerHTML = '<span class="badge bg-danger">Error</span>';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-lightning"></i> Generate Matches';
+    });
+}
+
+function matchAction(id, action) {
+    fetch('/frontdesk/matching/' + id + '/' + action + '/', {
+        method: 'POST', headers: { 'X-CSRFToken': csrftoken }, credentials: 'same-origin'
+    }).then(r => r.json()).then(() => location.reload());
+}
+</script>
+{% endblock %}
