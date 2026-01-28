@@ -223,6 +223,11 @@
                                list="calendarCustomerList" autocomplete="off">
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" id="editPhone" class="form-control"
+                               placeholder="(555) 123-4567" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Date & Time</label>
                         <input type="datetime-local" id="editDatetime" class="form-control">
                     </div>
@@ -237,6 +242,49 @@
                     <div class="mb-3">
                         <label class="form-label">Notes</label>
                         <textarea id="editNotes" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-2 p-2 bg-light rounded" style="font-size:0.85rem;">
+                        <div class="d-flex flex-wrap gap-3 align-items-center">
+                            <div>
+                                <span class="fw-bold me-1">Action:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="editAction" id="editActionNone" value="" checked>
+                                    <label class="btn btn-outline-secondary" for="editActionNone">--</label>
+                                    <input type="radio" class="btn-check" name="editAction" id="editActionBuying" value="BUYING">
+                                    <label class="btn btn-outline-primary" for="editActionBuying">Buying</label>
+                                    <input type="radio" class="btn-check" name="editAction" id="editActionSelling" value="SELLING">
+                                    <label class="btn btn-outline-primary" for="editActionSelling">Selling</label>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="fw-bold me-1">Metal:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="editMetal" id="editMetalNone" value="" checked>
+                                    <label class="btn btn-outline-secondary" for="editMetalNone">--</label>
+                                    <input type="radio" class="btn-check" name="editMetal" id="editMetalGold" value="GOLD">
+                                    <label class="btn btn-outline-warning" for="editMetalGold">Gold</label>
+                                    <input type="radio" class="btn-check" name="editMetal" id="editMetalSilver" value="SILVER">
+                                    <label class="btn btn-outline-secondary" for="editMetalSilver">Silver</label>
+                                    <input type="radio" class="btn-check" name="editMetal" id="editMetalPlatinum" value="PLATINUM">
+                                    <label class="btn btn-outline-info" for="editMetalPlatinum">Platinum</label>
+                                    <input type="radio" class="btn-check" name="editMetal" id="editMetalPalladium" value="PALLADIUM">
+                                    <label class="btn btn-outline-dark" for="editMetalPalladium">Palladium</label>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="fw-bold me-1">Form:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="editForm" id="editFormNone" value="" checked>
+                                    <label class="btn btn-outline-secondary" for="editFormNone">--</label>
+                                    <input type="radio" class="btn-check" name="editForm" id="editFormBullion" value="BULLION">
+                                    <label class="btn btn-outline-success" for="editFormBullion">Bullion</label>
+                                    <input type="radio" class="btn-check" name="editForm" id="editFormScrap" value="SCRAP">
+                                    <label class="btn btn-outline-success" for="editFormScrap">Scrap</label>
+                                    <input type="radio" class="btn-check" name="editForm" id="editFormOther" value="OTHER">
+                                    <label class="btn btn-outline-success" for="editFormOther">Other</label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="appt-actions" id="eventActions"></div>
@@ -416,6 +464,10 @@ document.addEventListener('DOMContentLoaded', function() {
             currentEventId = info.event.id;
             currentEventData = {
                 customer_name: props.customer_name || '',
+                phone: props.phone || '',
+                action: props.action || '',
+                metal: props.metal || '',
+                metal_form: props.metal_form || '',
                 purpose: props.purpose || '',
                 location: props.location || '',
                 notes: props.notes || '',
@@ -493,10 +545,18 @@ function showEventDetail() {
     var timeStr = d.start ? d.start.toLocaleString() : '';
     if (d.end) timeStr += ' - ' + d.end.toLocaleTimeString();
 
+    var catParts = [];
+    if (d.action) catParts.push(d.action);
+    if (d.metal) catParts.push(d.metal);
+    if (d.metal_form) catParts.push(d.metal_form);
+    var catStr = catParts.length ? catParts.join(' / ') : '';
+
     document.getElementById('eventTitle').textContent = d.customer_name + ' - ' + d.purpose;
     document.getElementById('eventBody').innerHTML =
         '<p><strong>Customer:</strong> ' + d.customer_name + '</p>' +
+        (d.phone ? '<p><strong>Phone:</strong> ' + d.phone + '</p>' : '') +
         '<p><strong>Purpose:</strong> ' + d.purpose + '</p>' +
+        (catStr ? '<p><strong>Category:</strong> ' + catStr + '</p>' : '') +
         '<p><strong>Location:</strong> ' + d.location + '</p>' +
         '<p><strong>Status:</strong> ' + statusBadge + '</p>' +
         '<p><strong>Notes:</strong> ' + (d.notes || 'None') + '</p>' +
@@ -533,8 +593,19 @@ function startEdit() {
 
     var d = currentEventData;
     document.getElementById('editCustomerName').value = d.customer_name;
+    document.getElementById('editPhone').value = d.phone || '';
     document.getElementById('editPurpose').value = d.purpose;
     document.getElementById('editNotes').value = d.notes || '';
+    // Set category radio buttons
+    var actionVal = d.action || '';
+    var metalVal = d.metal || '';
+    var formVal = d.metal_form || '';
+    var actionRadio = document.querySelector('input[name="editAction"][value="' + actionVal + '"]');
+    if (actionRadio) actionRadio.checked = true; else document.getElementById('editActionNone').checked = true;
+    var metalRadio = document.querySelector('input[name="editMetal"][value="' + metalVal + '"]');
+    if (metalRadio) metalRadio.checked = true; else document.getElementById('editMetalNone').checked = true;
+    var formRadio = document.querySelector('input[name="editForm"][value="' + formVal + '"]');
+    if (formRadio) formRadio.checked = true; else document.getElementById('editFormNone').checked = true;
     if (d.start) {
         var s = d.start;
         document.getElementById('editDatetime').value =
@@ -559,14 +630,22 @@ function startEdit() {
 function saveEdit() {
     var body = { id: currentEventId };
     var name = document.getElementById('editCustomerName').value.trim();
+    var phone = document.getElementById('editPhone').value.trim();
     var purpose = document.getElementById('editPurpose').value.trim();
     var notes = document.getElementById('editNotes').value.trim();
     var dt = document.getElementById('editDatetime').value;
     var endDt = document.getElementById('editEndDatetime').value;
+    var eActionEl = document.querySelector('input[name="editAction"]:checked');
+    var eMetalEl = document.querySelector('input[name="editMetal"]:checked');
+    var eFormEl = document.querySelector('input[name="editForm"]:checked');
 
     if (name) body.customer_name = name;
+    body.phone = phone;
     if (purpose) body.purpose = purpose;
     body.notes = notes;
+    body.action = eActionEl ? eActionEl.value : '';
+    body.metal = eMetalEl ? eMetalEl.value : '';
+    body.metal_form = eFormEl ? eFormEl.value : '';
     if (dt) body.datetime = new Date(dt).toISOString();
     if (endDt) body.end_datetime = new Date(endDt).toISOString();
 

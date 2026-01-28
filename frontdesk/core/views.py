@@ -632,6 +632,10 @@ def appointment_api(request):
                     "extendedProps": {
                         "customer_id": appt.customer.id,
                         "customer_name": appt.customer.name,
+                        "phone": appt.customer.phone,
+                        "action": appt.customer.action,
+                        "metal": appt.customer.metal,
+                        "metal_form": appt.customer.metal_form,
                         "purpose": appt.purpose,
                         "location": appt.location,
                         "status": appt.status,
@@ -684,6 +688,26 @@ def appointment_api(request):
                     appt.customer = cust
 
             appt.save()
+
+            # Update customer fields (phone, categories)
+            cust = appt.customer
+            cust_fields = []
+            if "phone" in body:
+                phone = body["phone"].strip()
+                if phone:
+                    cust.phone = phone
+                    cust_fields.append("phone")
+            if "action" in body:
+                cust.action = body["action"]
+                cust_fields.append("action")
+            if "metal" in body:
+                cust.metal = body["metal"]
+                cust_fields.append("metal")
+            if "metal_form" in body:
+                cust.metal_form = body["metal_form"]
+                cust_fields.append("metal_form")
+            if cust_fields:
+                cust.save(update_fields=cust_fields)
             return JsonResponse({"status": "updated"})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
