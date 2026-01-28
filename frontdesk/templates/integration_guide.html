@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Integration Guide - J. Austin{% endblock %}
+{% block page_title %}Integration Guide{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+
+        <!-- My AI Front Desk Integration -->
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="bi bi-telephone"></i> My AI Front Desk Integration</h5>
+            </div>
+            <div class="card-body">
+                <p>Connect your <strong>My AI Front Desk</strong> (myaifrontdesk.com) account to automatically receive call data, transcripts, and caller information in this CRM.</p>
+
+                <h6 class="mt-4">Step 1: Configure the Post-Call Webhook</h6>
+                <ol>
+                    <li>Log into your <strong>My AI Front Desk</strong> admin dashboard</li>
+                    <li>Go to <strong>Settings</strong> &rarr; <strong>Integrations</strong> (or <strong>Webhooks</strong>)</li>
+                    <li>Add a new <strong>Post-Call Webhook</strong> with this URL:
+                        <div class="bg-light p-2 rounded mt-2 mb-2">
+                            <code id="webhookUrl">https://agent.opentruthai.com/frontdesk/calls/webhook/</code>
+                            <button class="btn btn-sm btn-outline-secondary ms-2" onclick="navigator.clipboard.writeText(document.getElementById('webhookUrl').textContent)">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                        </div>
+                    </li>
+                    <li>Set the method to <strong>POST</strong></li>
+                    <li>Set content type to <strong>application/json</strong></li>
+                    <li>Save and test the webhook</li>
+                </ol>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> <strong>Note:</strong> This webhook URL is protected by basic auth (admin/opentruth). If My AI Front Desk doesn't support basic auth in webhook URLs, use this format instead:<br>
+                    <code>https://admin:opentruth@agent.opentruthai.com/frontdesk/calls/webhook/</code>
+                </div>
+
+                <h6 class="mt-4">Step 2: What Data Gets Captured</h6>
+                <p>After each call, My AI Front Desk sends a JSON payload. The CRM automatically extracts:</p>
+                <table class="table table-sm">
+                    <thead><tr><th>Field</th><th>Source Keys (auto-detected)</th></tr></thead>
+                    <tbody>
+                        <tr><td>Phone Number</td><td><code>phone_number</code>, <code>caller_id</code>, <code>from</code></td></tr>
+                        <tr><td>Call Direction</td><td><code>direction</code> (defaults to INBOUND)</td></tr>
+                        <tr><td>Duration</td><td><code>duration</code>, <code>call_duration</code></td></tr>
+                        <tr><td>Transcript</td><td><code>transcript</code>, <code>summary</code></td></tr>
+                        <tr><td>Category/Intent</td><td><code>category</code>, <code>intent</code></td></tr>
+                        <tr><td>External ID</td><td><code>id</code>, <code>call_id</code>, <code>callSid</code></td></tr>
+                    </tbody>
+                </table>
+
+                <h6 class="mt-4">Step 3: Automatic Customer Matching</h6>
+                <p>When a call comes in, the CRM automatically:</p>
+                <ul>
+                    <li>Strips formatting from the phone number (dashes, spaces, parentheses)</li>
+                    <li>Searches for an existing customer with a matching phone number</li>
+                    <li>If found: links the call to that customer and creates an interaction record</li>
+                    <li>If not found: creates the call log entry as "Unmatched" (you can manually link it later)</li>
+                </ul>
+
+                <h6 class="mt-4">Step 4: Import Existing Call History</h6>
+                <ol>
+                    <li>In My AI Front Desk, export your call history as CSV</li>
+                    <li>Go to <a href="{% url 'csv_import' %}"><strong>Import/Export</strong></a> in this CRM</li>
+                    <li>Select <strong>"Call Log"</strong> as the import type</li>
+                    <li>Upload the CSV file</li>
+                    <li>The system auto-detects column names and imports all records</li>
+                    <li>New customers are automatically created for unmatched phone numbers</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Twilio SMS Integration -->
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="bi bi-chat-dots"></i> Twilio SMS Integration</h5>
+            </div>
+            <div class="card-body">
+                <p>Send and receive text messages through Twilio. Customer replies are captured and shown in the conversation history.</p>
+
+                <h6 class="mt-4">Step 1: Get Twilio Credentials</h6>
+                <ol>
+                    <li>Sign up at <strong>twilio.com</strong></li>
+                    <li>Get a phone number with SMS capability</li>
+                    <li>Find your <strong>Account SID</strong> and <strong>Auth Token</strong> on the Twilio Console dashboard</li>
+                </ol>
+
+                <h6 class="mt-4">Step 2: Add Credentials to CRM</h6>
+                <p>SSH into your server and edit the environment file:</p>
+                <pre class="bg-light p-3 rounded"><code>nano /opt/frontdesk/.env</code></pre>
+                <p>Add your Twilio credentials:</p>
+                <pre class="bg-light p-3 rounded"><code>TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token_here
+TWILIO_PHONE=+1234567890</code></pre>
+                <p>Then restart the CRM:</p>
+                <pre class="bg-light p-3 rounded"><code>cd /opt/frontdesk && docker compose restart</code></pre>
+
+                <h6 class="mt-4">Step 3: Configure Inbound SMS Webhook</h6>
+                <p>To receive customer reply texts:</p>
+                <ol>
+                    <li>Go to your Twilio Console &rarr; <strong>Phone Numbers</strong> &rarr; <strong>Manage</strong> &rarr; <strong>Active Numbers</strong></li>
+                    <li>Click your phone number</li>
+                    <li>Under <strong>Messaging</strong> &rarr; <strong>"A Message Comes In"</strong>, set:
+                        <ul>
+                            <li>Webhook URL: <code>https://agent.opentruthai.com/frontdesk/sms/webhook/</code></li>
+                            <li>HTTP Method: <strong>POST</strong></li>
+                        </ul>
+                    </li>
+                    <li>Save</li>
+                </ol>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> <strong>Important:</strong> The SMS webhook endpoint bypasses basic auth (it's csrf_exempt for Twilio access). The URL must be accessible without authentication.
+                </div>
+
+                <h6 class="mt-4">Step 4: How It Works</h6>
+                <ul>
+                    <li><strong>Sending:</strong> Go to <a href="{% url 'texting' %}">Texting</a>, select recipients, type message, click Send</li>
+                    <li><strong>Receiving:</strong> When a customer replies, Twilio forwards the text to the webhook. The CRM matches the phone number to a customer and stores the message.</li>
+                    <li><strong>Conversation View:</strong> Click any customer &rarr; view their full text conversation history in a chat-style thread</li>
+                    <li><strong>Unknown Numbers:</strong> If an inbound text doesn't match any customer, a new customer is automatically created</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SendGrid Integration -->
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="bi bi-envelope"></i> SendGrid Email Integration</h5>
+            </div>
+            <div class="card-body">
+                <p>Send email messages to customers who don't have a phone number on file.</p>
+
+                <h6 class="mt-4">Setup</h6>
+                <ol>
+                    <li>Sign up at <strong>sendgrid.com</strong></li>
+                    <li>Create an API key with <strong>Mail Send</strong> permissions</li>
+                    <li>Verify a sender email address</li>
+                    <li>Add to your environment file:
+                        <pre class="bg-light p-3 rounded mt-2"><code>SENDGRID_API_KEY=SG.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code></pre>
+                    </li>
+                    <li>Restart: <code>cd /opt/frontdesk && docker compose restart</code></li>
+                </ol>
+                <p>When you send a message from the Texting page, customers with a phone get SMS (via Twilio). Customers with only an email get the message via SendGrid.</p>
+            </div>
+        </div>
+
+        <!-- AI Integration -->
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="bi bi-robot"></i> AI Integration (Claude / Grok)</h5>
+            </div>
+            <div class="card-body">
+                <p>AI capabilities are available for analyzing call transcripts and generating customer insights.</p>
+                <h6>Setup</h6>
+                <p>Add one or both API keys to your environment file:</p>
+                <pre class="bg-light p-3 rounded"><code># Anthropic Claude
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Grok (xAI)
+GROK_API_KEY=xai-xxxxxxxxxxxxxxxxxxxxxxxxx</code></pre>
+                <p>Then restart: <code>cd /opt/frontdesk && docker compose restart</code></p>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Quick Reference -->
+        <div class="card mb-3">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0"><i class="bi bi-lightning"></i> Quick Reference</h6>
+            </div>
+            <div class="card-body">
+                <h6>Webhook URLs</h6>
+                <table class="table table-sm">
+                    <tr>
+                        <td><strong>Call Webhook</strong><br>(Front Desk AI)</td>
+                        <td><small><code>/frontdesk/calls/webhook/</code></small></td>
+                    </tr>
+                    <tr>
+                        <td><strong>SMS Webhook</strong><br>(Twilio)</td>
+                        <td><small><code>/frontdesk/sms/webhook/</code></small></td>
+                    </tr>
+                </table>
+
+                <h6 class="mt-3">Environment Variables</h6>
+                <table class="table table-sm">
+                    <tr><td><code>TWILIO_ACCOUNT_SID</code></td></tr>
+                    <tr><td><code>TWILIO_AUTH_TOKEN</code></td></tr>
+                    <tr><td><code>TWILIO_PHONE</code></td></tr>
+                    <tr><td><code>SENDGRID_API_KEY</code></td></tr>
+                    <tr><td><code>ANTHROPIC_API_KEY</code></td></tr>
+                    <tr><td><code>GROK_API_KEY</code></td></tr>
+                    <tr><td><code>FRONTDESK_AI_API_KEY</code></td></tr>
+                </table>
+
+                <h6 class="mt-3">Useful Commands</h6>
+                <pre class="bg-light p-2 rounded" style="font-size:0.75rem;"><code># View logs
+cd /opt/frontdesk
+docker compose logs -f
+
+# Restart after env changes
+docker compose restart
+
+# Check status
+docker compose ps</code></pre>
+            </div>
+        </div>
+
+        <!-- CRM Features -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-gear"></i> CRM Features</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2"><a href="{% url 'dashboard' %}"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+                    <li class="mb-2"><a href="{% url 'customer_list' %}"><i class="bi bi-people"></i> Customers</a></li>
+                    <li class="mb-2"><a href="{% url 'matching' %}"><i class="bi bi-arrow-left-right"></i> Buy/Sell Matching</a></li>
+                    <li class="mb-2"><a href="{% url 'appointment_list' %}"><i class="bi bi-calendar-check"></i> Appointments</a></li>
+                    <li class="mb-2"><a href="{% url 'calendar' %}"><i class="bi bi-calendar3"></i> Calendar</a></li>
+                    <li class="mb-2"><a href="{% url 'texting' %}"><i class="bi bi-chat-dots"></i> Texting</a></li>
+                    <li class="mb-2"><a href="{% url 'call_log' %}"><i class="bi bi-telephone"></i> Call Log</a></li>
+                    <li class="mb-2"><a href="{% url 'csv_import' %}"><i class="bi bi-cloud-upload"></i> Import/Export</a></li>
+                    <li class="mb-2"><a href="{% url 'template_manage' %}"><i class="bi bi-file-text"></i> Text Templates</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

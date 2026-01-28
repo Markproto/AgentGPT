@@ -1292,3 +1292,14 @@ def sms_webhook(request):
         '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
         content_type="text/xml",
     )
+
+
+# ============================================================================
+# Integration Guide
+# ============================================================================
+
+
+@login_required
+def integration_guide(request):
+    """Display the integration setup guide."""
+    return render(request, "integration_guide.html")

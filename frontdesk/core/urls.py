@@ -43,6 +43,8 @@ urlpatterns = [
     path("conversation/<int:pk>/", views.conversation_view, name="conversation"),
     # Inbound SMS Webhook (Twilio)
     path("sms/webhook/", views.sms_webhook, name="sms_webhook"),
+    # Integration Guide
+    path("guide/", views.integration_guide, name="integration_guide"),
     # Additional APIs
     path("api/dashboard/stats/", api_views.dashboard_stats_api, name="dashboard_stats_api"),
     path("api/customers/search/", api_views.customer_search_api, name="customer_search_api"),
