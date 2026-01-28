@@ -37,6 +37,15 @@
     color: rgba(13, 110, 253, 0.7) !important;
     font-style: italic;
     font-weight: 400;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    padding: 1px 4px;
+}
+/* Notes take half width in time grid so appointments fit beside them */
+.fc-timegrid-event.ev-note {
+    max-width: 48% !important;
+    right: auto !important;
+    min-height: 20px !important;
 }
 .fc-daygrid-event.ev-note {
     background-color: rgba(13, 110, 253, 0.1) !important;
@@ -57,6 +66,39 @@
 
 .appt-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dee2e6; }
 .appt-actions .btn { flex: 1; min-width: 90px; }
+
+/* ─── Mobile Responsive ─── */
+@media (max-width: 768px) {
+    /* Stack toolbar vertically */
+    .fc .fc-toolbar { flex-wrap: wrap; gap: 0.4rem; }
+    .fc .fc-toolbar-title { font-size: 1.1rem; order: -1; width: 100%; text-align: center; }
+    .fc .fc-toolbar .fc-toolbar-chunk { display: flex; justify-content: center; }
+    /* Smaller buttons */
+    .fc .fc-button { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+    .fc .fc-button-group .fc-button { font-size: 0.72rem; padding: 0.2rem 0.4rem; }
+    /* Narrower time axis */
+    .fc .fc-timegrid-axis { width: 42px !important; }
+    .fc .fc-timegrid-slot-label { font-size: 0.7rem; }
+    /* Event text smaller */
+    .fc-timegrid-event .fc-event-main { font-size: 0.72rem; padding: 1px 3px; }
+    .fc-daygrid-event { font-size: 0.72rem; padding: 1px 3px; }
+    /* Modals full-width on mobile */
+    .modal-dialog { margin: 0.5rem; max-width: calc(100% - 1rem); }
+    .modal-sm { max-width: calc(100% - 1rem); }
+    /* Action buttons wrap tighter */
+    .appt-actions .btn { min-width: 70px; font-size: 0.78rem; padding: 0.3rem 0.5rem; }
+    /* Card no padding on mobile */
+    .card-body { padding: 0.5rem; }
+}
+
+@media (max-width: 480px) {
+    .fc .fc-toolbar-title { font-size: 0.95rem; }
+    .fc .fc-button { font-size: 0.68rem; padding: 0.2rem 0.35rem; }
+    .fc .fc-timegrid-slot-label { font-size: 0.65rem; }
+    .fc-timegrid-event .fc-event-main { font-size: 0.65rem; }
+    .appt-actions { gap: 0.3rem; }
+    .appt-actions .btn { min-width: 60px; font-size: 0.72rem; }
+}
 </style>
 {% endblock %}
 
@@ -220,7 +262,8 @@ let dayNotes = [];
 document.addEventListener('DOMContentLoaded', function() {
     const el = document.getElementById('calendar');
     calendar = new FullCalendar.Calendar(el, {
-        initialView: 'dayGridMonth',
+        initialView: 'timeGridDay',
+        height: 'auto',
         headerToolbar: {
             left: 'prev,next today addNoteBtn',
             center: 'title',
@@ -241,12 +284,21 @@ document.addEventListener('DOMContentLoaded', function() {
                   dayNotes = rawEvents;
                   return rawEvents.map(function(n) {
                       var start = n.date;
+                      var isAllDay = !n.time;
                       if (n.time) start += 'T' + n.time;
+                      // Notes are always 15 min so they stay small
+                      var end = null;
+                      if (n.time) {
+                          var s = new Date(start);
+                          s.setMinutes(s.getMinutes() + 15);
+                          end = s.toISOString();
+                      }
                       return {
                           id: 'note-' + n.id,
                           title: n.content,
                           start: start,
-                          allDay: !n.time,
+                          end: end,
+                          allDay: isAllDay,
                           display: 'auto',
                           extendedProps: { type: 'note', noteId: n.id, content: n.content, date: n.date, time: n.time }
                       };
