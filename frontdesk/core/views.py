@@ -830,13 +830,13 @@ def texting_view(request):
         "customer"
     )[:20]
 
-    categories = Customer.Category.choices
-
     context = {
         "customers": customers,
         "templates": templates,
         "recent_texts": recent_texts,
-        "categories": categories,
+        "actions": Customer.Action.choices,
+        "metals": Customer.Metal.choices,
+        "metal_forms": Customer.MetalForm.choices,
     }
     return render(request, "texting.html", context)
 

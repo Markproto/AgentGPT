@@ -22,13 +22,27 @@
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label">Quick Select by Category</label>
-                    <select id="categoryFilter" class="form-select form-select-sm" onchange="filterRecipients(this.value)">
-                        <option value="">-- Filter by Category --</option>
-                        {% for val, label in categories %}
-                        <option value="{{ val }}">{{ label }}</option>
-                        {% endfor %}
-                    </select>
+                    <label class="form-label">Quick Filter</label>
+                    <div class="d-flex gap-2">
+                        <select id="actionFilter" class="form-select form-select-sm" onchange="filterRecipients()">
+                            <option value="">All Actions</option>
+                            {% for val, label in actions %}
+                            <option value="{{ val }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <select id="metalFilter" class="form-select form-select-sm" onchange="filterRecipients()">
+                            <option value="">All Metals</option>
+                            {% for val, label in metals %}
+                            <option value="{{ val }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <select id="formFilter" class="form-select form-select-sm" onchange="filterRecipients()">
+                            <option value="">All Forms</option>
+                            {% for val, label in metal_forms %}
+                            <option value="{{ val }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
 
                 <div class="mb-3">
@@ -158,14 +172,22 @@ document.getElementById('messageText').addEventListener('input', function() {
 // Customer data for filtering
 const allCustomers = [
     {% for c in customers %}
-    { id: {{ c.id }}, name: "{{ c.name|escapejs }}", phone: "{{ c.phone|escapejs }}", email: "{{ c.email|escapejs }}", category: "{{ c.category }}" },
+    { id: {{ c.id }}, name: "{{ c.name|escapejs }}", phone: "{{ c.phone|escapejs }}", email: "{{ c.email|escapejs }}", action: "{{ c.action }}", metal: "{{ c.metal }}", metal_form: "{{ c.metal_form }}" },
     {% endfor %}
 ];
 
-function filterRecipients(category) {
+function filterRecipients() {
+    const actionVal = document.getElementById('actionFilter').value;
+    const metalVal = document.getElementById('metalFilter').value;
+    const formVal = document.getElementById('formFilter').value;
     const select = document.getElementById('recipientSelect');
     select.innerHTML = '';
-    const filtered = category ? allCustomers.filter(c => c.category === category) : allCustomers;
+    const filtered = allCustomers.filter(c => {
+        if (actionVal && c.action !== actionVal) return false;
+        if (metalVal && c.metal !== metalVal) return false;
+        if (formVal && c.metal_form !== formVal) return false;
+        return true;
+    });
     filtered.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.id;
