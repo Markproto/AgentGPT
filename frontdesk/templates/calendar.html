@@ -195,27 +195,21 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Inventory Link Section -->
-                    <div class="mb-3 p-2 border rounded" id="apptInventorySection">
-                        <div class="d-flex align-items-center gap-2 mb-2">
-                            <i class="bi bi-box-seam text-primary"></i>
-                            <span class="fw-bold">Link to Inventory</span>
-                            <small class="text-muted">(optional)</small>
-                        </div>
-                        <div class="row g-2">
-                            <div class="col-8">
-                                <select id="apptInventoryNeed" class="form-select form-select-sm" onchange="onInventorySelect()">
-                                    <option value="">-- Select Inventory Need --</option>
-                                </select>
+                    <!-- Line Items Section (Multiple Metals/Products) -->
+                    <div class="mb-3 p-2 border rounded bg-light" id="apptLineItemsSection">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-box-seam text-primary"></i>
+                                <span class="fw-bold">Items to Buy/Sell</span>
                             </div>
-                            <div class="col-4">
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text">Qty (oz)</span>
-                                    <input type="number" id="apptQuantity" class="form-control" min="0.0001" step="0.0001" value="" placeholder="0">
-                                </div>
-                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="addLineItem()">
+                                <i class="bi bi-plus-lg"></i> Add Item
+                            </button>
                         </div>
-                        <small class="text-muted d-block mt-1">When completed, this quantity will fulfill the inventory need.</small>
+                        <div id="lineItemsContainer">
+                            <!-- Line items will be added here dynamically -->
+                        </div>
+                        <small class="text-muted d-block mt-1">Add items the customer is buying or selling. Multiple items create separate entries.</small>
                     </div>
                     <button type="submit" class="d-none"></button>
                 </form>
@@ -496,9 +490,9 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('apptFormNone').checked = true;
             document.getElementById('apptDatetime').value = info.startStr.slice(0, 16);
             if (info.endStr) document.getElementById('apptEndDatetime').value = info.endStr.slice(0, 16);
-            document.getElementById('apptInventoryNeed').innerHTML = '<option value="">-- Select Inventory Need --</option>';
-            document.getElementById('apptQuantity').value = '';
-            loadInventoryOptions('apptInventoryNeed', '', '');
+            // Clear and add one empty line item for inventory
+            clearLineItems();
+            addLineItem();
             appointmentModal.show();
             setTimeout(function() { document.getElementById('apptCustomerName').focus(); }, 300);
         },
@@ -786,6 +780,7 @@ function saveAppointment() {
     var datetimeVal = document.getElementById('apptDatetime').value;
     var endDatetimeVal = document.getElementById('apptEndDatetime').value;
     var purpose = document.getElementById('apptPurpose').value.trim();
+    var notes = document.getElementById('apptNotes').value.trim();
 
     if (!customerName || !datetimeVal || !purpose) {
         alert('Customer, date/time, and purpose are required.');
@@ -817,41 +812,79 @@ function saveAppointment() {
     var action = actionEl ? actionEl.value : '';
     var metal = metalEl ? metalEl.value : '';
     var metalForm = formEl ? formEl.value : '';
-    var inventoryNeedId = document.getElementById('apptInventoryNeed').value;
-    var quantity = document.getElementById('apptQuantity').value;
 
-    var formData = new FormData();
-    formData.append('customer', customerId);
-    formData.append('customer_name', customerName);
-    if (phone) formData.append('phone', phone);
-    if (action) formData.append('action', action);
-    if (metal) formData.append('metal', metal);
-    if (metalForm) formData.append('metal_form', metalForm);
-    if (inventoryNeedId) formData.append('inventory_need_id', inventoryNeedId);
-    if (quantity) formData.append('quantity', quantity);
-    formData.append('iso_datetime', isoStart);
-    if (isoEnd) formData.append('iso_end_datetime', isoEnd);
-    formData.append('purpose', purpose);
-    formData.append('duration', duration);
+    // Get line items (multiple metals/quantities)
+    var lineItems = getLineItems();
 
-    fetch('/frontdesk/appointments/create/', {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrftoken },
-        credentials: 'same-origin',
-        body: formData
-    }).then(function(r) {
-        if (!r.ok) throw new Error('Server error ' + r.status);
-        return r.json();
-    }).then(function(d) {
-        if (d.status === 'created') {
-            appointmentModal.hide();
-            calendar.refetchEvents();
-            document.getElementById('appointmentForm').reset();
-        } else {
-            alert('Error: ' + JSON.stringify(d.errors));
+    // If no line items, create one appointment
+    // If multiple line items, create multiple appointments
+    var appointmentsToCreate = [];
+
+    if (lineItems.length === 0) {
+        // No line items - create single appointment without inventory link
+        appointmentsToCreate.push({ inventory_need_id: '', quantity: '', metal: metal });
+    } else {
+        // Create one appointment per line item
+        lineItems.forEach(function(item) {
+            appointmentsToCreate.push({
+                inventory_need_id: item.inventory_need_id,
+                quantity: item.quantity,
+                metal: item.metal || metal
+            });
+        });
+    }
+
+    var createdCount = 0;
+    var errorOccurred = false;
+
+    appointmentsToCreate.forEach(function(apptData, index) {
+        var formData = new FormData();
+        formData.append('customer', customerId);
+        formData.append('customer_name', customerName);
+        if (phone) formData.append('phone', phone);
+        if (action) formData.append('action', action);
+        if (apptData.metal) formData.append('metal', apptData.metal);
+        if (metalForm) formData.append('metal_form', metalForm);
+        if (apptData.inventory_need_id) formData.append('inventory_need_id', apptData.inventory_need_id);
+        if (apptData.quantity) formData.append('quantity', apptData.quantity);
+        formData.append('iso_datetime', isoStart);
+        if (isoEnd) formData.append('iso_end_datetime', isoEnd);
+        // Add index to purpose if multiple items
+        var apptPurpose = purpose;
+        if (appointmentsToCreate.length > 1 && apptData.metal) {
+            apptPurpose = purpose + ' (' + apptData.metal + ')';
         }
-    }).catch(function(err) {
-        alert('Failed to save appointment: ' + err.message);
+        formData.append('purpose', apptPurpose);
+        formData.append('duration', duration);
+        if (notes) formData.append('notes', notes);
+
+        fetch('/frontdesk/appointments/create/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrftoken },
+            credentials: 'same-origin',
+            body: formData
+        }).then(function(r) {
+            if (!r.ok) throw new Error('Server error ' + r.status);
+            return r.json();
+        }).then(function(d) {
+            createdCount++;
+            if (d.status !== 'created' && !errorOccurred) {
+                errorOccurred = true;
+                alert('Error: ' + JSON.stringify(d.errors));
+            }
+            // When all done, close and refresh
+            if (createdCount === appointmentsToCreate.length && !errorOccurred) {
+                appointmentModal.hide();
+                calendar.refetchEvents();
+                document.getElementById('appointmentForm').reset();
+                clearLineItems();
+            }
+        }).catch(function(err) {
+            if (!errorOccurred) {
+                errorOccurred = true;
+                alert('Failed to save appointment: ' + err.message);
+            }
+        });
     });
 }
 
@@ -978,12 +1011,121 @@ function loadInventoryOptions(selectId, customerAction, metal, selectedId) {
         });
 }
 
-function onInventorySelect() {
+// ─── Line Item Management ───
+var lineItemCount = 0;
+
+function addLineItem(prefillData) {
+    lineItemCount++;
+    var idx = lineItemCount;
+    var container = document.getElementById('lineItemsContainer');
+
+    var row = document.createElement('div');
+    row.className = 'row g-2 mb-2 align-items-end line-item-row';
+    row.id = 'lineItem' + idx;
+    row.innerHTML = `
+        <div class="col-3">
+            <label class="form-label small mb-1">Metal</label>
+            <select class="form-select form-select-sm line-metal" onchange="loadLineInventory(${idx})">
+                <option value="">--</option>
+                <option value="GOLD">Gold</option>
+                <option value="SILVER">Silver</option>
+                <option value="PLATINUM">Platinum</option>
+                <option value="PALLADIUM">Palladium</option>
+            </select>
+        </div>
+        <div class="col-4">
+            <label class="form-label small mb-1">Inventory Need</label>
+            <select class="form-select form-select-sm line-inventory" id="lineInv${idx}">
+                <option value="">-- Select --</option>
+            </select>
+        </div>
+        <div class="col-3">
+            <label class="form-label small mb-1">Qty (oz)</label>
+            <input type="number" class="form-control form-control-sm line-qty" min="0.0001" step="0.0001" placeholder="0">
+        </div>
+        <div class="col-2">
+            <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="removeLineItem(${idx})">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    `;
+    container.appendChild(row);
+
+    // Pre-fill if data provided
+    if (prefillData) {
+        var metalSelect = row.querySelector('.line-metal');
+        var qtyInput = row.querySelector('.line-qty');
+        if (prefillData.metal) metalSelect.value = prefillData.metal;
+        if (prefillData.qty) qtyInput.value = prefillData.qty;
+        loadLineInventory(idx);
+    }
+
+    // Auto-load inventory based on current action selection
     var actionEl = document.querySelector('input[name="apptAction"]:checked');
-    var metalEl = document.querySelector('input[name="apptMetal"]:checked');
+    if (actionEl && actionEl.value) {
+        loadLineInventory(idx);
+    }
+}
+
+function removeLineItem(idx) {
+    var row = document.getElementById('lineItem' + idx);
+    if (row) row.remove();
+}
+
+function loadLineInventory(idx) {
+    var row = document.getElementById('lineItem' + idx);
+    if (!row) return;
+
+    var metalSelect = row.querySelector('.line-metal');
+    var invSelect = row.querySelector('.line-inventory');
+    var metal = metalSelect.value;
+
+    var actionEl = document.querySelector('input[name="apptAction"]:checked');
     var action = actionEl ? actionEl.value : '';
-    var metal = metalEl ? metalEl.value : '';
-    loadInventoryOptions('apptInventoryNeed', action, metal);
+
+    invSelect.innerHTML = '<option value="">-- Select --</option>';
+
+    var params = new URLSearchParams();
+    if (action) params.set('customer_action', action);
+    if (metal) params.set('metal', metal);
+
+    fetch('/frontdesk/inventory/for-appointment/?' + params.toString(), { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var items = d.items || [];
+            items.forEach(function(item) {
+                var opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.display + ' (' + item.quantity_remaining + ' left)';
+                invSelect.appendChild(opt);
+            });
+        });
+}
+
+function getLineItems() {
+    var items = [];
+    document.querySelectorAll('.line-item-row').forEach(function(row) {
+        var metal = row.querySelector('.line-metal').value;
+        var invId = row.querySelector('.line-inventory').value;
+        var qty = row.querySelector('.line-qty').value;
+        if (metal || invId || qty) {
+            items.push({ metal: metal, inventory_need_id: invId, quantity: qty });
+        }
+    });
+    return items;
+}
+
+function clearLineItems() {
+    document.getElementById('lineItemsContainer').innerHTML = '';
+    lineItemCount = 0;
+}
+
+function onInventorySelect() {
+    // When action changes, reload all line item inventories
+    document.querySelectorAll('.line-item-row').forEach(function(row) {
+        var idx = row.id.replace('lineItem', '');
+        loadLineInventory(parseInt(idx));
+    });
 }
 
 // Reload inventory options when action/metal changes in new appointment form
