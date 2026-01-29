@@ -1889,7 +1889,6 @@ def inventory_for_appointment(request):
 # ============================================================================
 
 
-@login_required
 def prices_api(request):
     """
     API endpoint for live precious metal prices.
