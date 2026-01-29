@@ -236,15 +236,6 @@ function saveManualMatch() {
     const profitMargin = document.getElementById('mmProfitMargin').value;
     const notes = document.getElementById('mmNotes').value.trim();
 
-    if (!sellerName || !buyerName) {
-        alert('Both seller and buyer are required.');
-        return;
-    }
-    if (!amount || parseFloat(amount) <= 0) {
-        alert('Please enter a valid amount.');
-        return;
-    }
-
     // Find customer IDs if they exist
     let sellerId = '', buyerId = '';
     document.querySelectorAll('#customerList option').forEach(opt => {

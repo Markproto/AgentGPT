@@ -450,7 +450,7 @@ def manual_match(request):
     try:
         body = json.loads(request.body)
 
-        # Get or create buyer
+        # Get or create buyer (optional - use placeholder if not provided)
         buyer_id = body.get("buyer_id")
         buyer_name = body.get("buyer_name", "").strip()
         if buyer_id:
@@ -465,9 +465,16 @@ def manual_match(request):
                 },
             )
         else:
-            return JsonResponse({"error": "Buyer is required"}, status=400)
+            # Create placeholder buyer
+            buyer, _ = Customer.objects.get_or_create(
+                name="Unknown Buyer",
+                defaults={
+                    "category": Customer.Category.BUY_BULLION,
+                    "status": Customer.Status.CLOSED,
+                },
+            )
 
-        # Get or create seller (consignor)
+        # Get or create seller (optional - use placeholder if not provided)
         seller_id = body.get("seller_id")
         seller_name = body.get("seller_name", "").strip()
         if seller_id:
@@ -482,12 +489,17 @@ def manual_match(request):
                 },
             )
         else:
-            return JsonResponse({"error": "Seller/Consignor is required"}, status=400)
+            # Create placeholder seller
+            seller, _ = Customer.objects.get_or_create(
+                name="Unknown Seller",
+                defaults={
+                    "category": Customer.Category.SELL_BULLION,
+                    "status": Customer.Status.CLOSED,
+                },
+            )
 
-        # Create the match
-        amount = Decimal(body.get("amount", "0"))
-        if amount <= 0:
-            return JsonResponse({"error": "Amount must be greater than 0"}, status=400)
+        # Create the match (amount defaults to 1 if not provided)
+        amount = Decimal(body.get("amount") or "1")
 
         bullion_type = body.get("bullion_type", "GOLD")
         product = body.get("product", "").strip()
