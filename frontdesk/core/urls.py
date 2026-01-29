@@ -58,4 +58,7 @@ urlpatterns = [
     path("api/interactions/create/", api_views.interaction_create_api, name="interaction_create_api"),
     # Prices API
     path("api/prices/", views.prices_api, name="prices_api"),
+    # Spread / Product Pricing
+    path("spread/", views.spread_view, name="spread"),
+    path("spread/api/", views.product_api, name="product_api"),
 ]

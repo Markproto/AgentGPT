@@ -355,6 +355,42 @@ class InventoryNeed(models.Model):
         self.save(update_fields=["status"])
 
 
+class Product(models.Model):
+    """Products with pricing relative to spot price."""
+
+    class Metal(models.TextChoices):
+        GOLD = "GOLD", "Gold"
+        SILVER = "SILVER", "Silver"
+        PLATINUM = "PLATINUM", "Platinum"
+        PALLADIUM = "PALLADIUM", "Palladium"
+
+    name = models.CharField(max_length=255, help_text="e.g., American Eagle, Maple Leaf, Generic Bar")
+    metal = models.CharField(max_length=10, choices=Metal.choices)
+    size = models.CharField(max_length=50, help_text="e.g., 1 oz, 10 oz, 1/2 oz, 1 kg")
+    buy_premium = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Premium above/below spot when BUYING from customers (negative = below spot)",
+    )
+    sell_premium = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Premium above/below spot when SELLING to customers (negative = below spot)",
+    )
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["metal", "name", "size"]
+
+    def __str__(self):
+        return f"{self.name} {self.size} ({self.get_metal_display()})"
+
+
 class CallLog(models.Model):
     """Log of phone calls, integrated with Front Desk AI."""
 

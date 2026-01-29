@@ -21,7 +21,7 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST, require_http_methods
 
 from .forms import CustomerForm, AppointmentForm, TextTemplateForm, SendTextForm, LoginForm
-from .models import Customer, Interaction, TextTemplate, Match, Appointment, CallLog, DayNote, InventoryNeed
+from .models import Customer, Interaction, TextTemplate, Match, Appointment, CallLog, DayNote, InventoryNeed, Product
 from .services import fetch_metal_prices
 
 logger = logging.getLogger(__name__)
@@ -1919,3 +1919,110 @@ def prices_api(request):
     """
     data = fetch_metal_prices()
     return JsonResponse(data)
+
+
+# ============================================================================
+# Spread / Product Pricing
+# ============================================================================
+
+
+@login_required
+def spread_view(request):
+    """Spread page showing live prices and product premiums."""
+    products = Product.objects.filter(is_active=True)
+    context = {
+        "products": products,
+        "metals": Product.Metal.choices,
+    }
+    return render(request, "spread.html", context)
+
+
+@login_required
+@require_http_methods(["GET", "POST", "PUT", "DELETE"])
+def product_api(request):
+    """API for product CRUD operations."""
+
+    # GET - list all products
+    if request.method == "GET":
+        products = Product.objects.all()
+
+        # Filter by active
+        active_only = request.GET.get("active")
+        if active_only == "true":
+            products = products.filter(is_active=True)
+
+        # Filter by metal
+        metal = request.GET.get("metal")
+        if metal:
+            products = products.filter(metal=metal)
+
+        data = [
+            {
+                "id": p.id,
+                "name": p.name,
+                "metal": p.metal,
+                "metal_display": p.get_metal_display(),
+                "size": p.size,
+                "buy_premium": float(p.buy_premium),
+                "sell_premium": float(p.sell_premium),
+                "is_active": p.is_active,
+                "notes": p.notes,
+            }
+            for p in products
+        ]
+        return JsonResponse({"products": data})
+
+    # POST - create new product
+    if request.method == "POST":
+        try:
+            body = json.loads(request.body)
+            product = Product.objects.create(
+                name=body.get("name", "").strip(),
+                metal=body.get("metal", "GOLD"),
+                size=body.get("size", "").strip(),
+                buy_premium=Decimal(str(body.get("buy_premium", 0))),
+                sell_premium=Decimal(str(body.get("sell_premium", 0))),
+                is_active=body.get("is_active", True),
+                notes=body.get("notes", "").strip(),
+            )
+            return JsonResponse({"status": "created", "id": product.id})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+    # PUT - update product
+    if request.method == "PUT":
+        try:
+            body = json.loads(request.body)
+            product_id = body.get("id")
+            product = get_object_or_404(Product, pk=product_id)
+
+            if "name" in body:
+                product.name = body["name"].strip()
+            if "metal" in body:
+                product.metal = body["metal"]
+            if "size" in body:
+                product.size = body["size"].strip()
+            if "buy_premium" in body:
+                product.buy_premium = Decimal(str(body["buy_premium"]))
+            if "sell_premium" in body:
+                product.sell_premium = Decimal(str(body["sell_premium"]))
+            if "is_active" in body:
+                product.is_active = body["is_active"]
+            if "notes" in body:
+                product.notes = body["notes"].strip()
+
+            product.save()
+            return JsonResponse({"status": "updated", "id": product.id})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+    # DELETE - delete product
+    if request.method == "DELETE":
+        try:
+            body = json.loads(request.body)
+            product_id = body.get("id")
+            product = get_object_or_404(Product, pk=product_id)
+            product.delete()
+            return JsonResponse({"status": "deleted"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
