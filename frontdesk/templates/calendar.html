@@ -398,6 +398,10 @@ let editMode = false;
 let dayNotes = [];
 let lastEventHash = '';
 let pollInterval = null;
+let eventDetailModal = null;
+let appointmentModal = null;
+let noteModal = null;
+let noteDetailModal = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     const el = document.getElementById('calendar');
@@ -495,7 +499,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('apptInventoryNeed').innerHTML = '<option value="">-- Select Inventory Need --</option>';
             document.getElementById('apptQuantity').value = '';
             loadInventoryOptions('apptInventoryNeed', '', '');
-            new bootstrap.Modal(document.getElementById('appointmentModal')).show();
+            appointmentModal.show();
             setTimeout(function() { document.getElementById('apptCustomerName').focus(); }, 300);
         },
         eventClick: function(info) {
@@ -557,6 +561,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Start polling for real-time updates (every 10 seconds)
     startCalendarPolling();
+
+    // Initialize modal instances (reuse to prevent backdrop issues)
+    eventDetailModal = new bootstrap.Modal(document.getElementById('eventDetailModal'));
+    appointmentModal = new bootstrap.Modal(document.getElementById('appointmentModal'));
+    noteModal = new bootstrap.Modal(document.getElementById('noteModal'));
+    noteDetailModal = new bootstrap.Modal(document.getElementById('noteDetailModal'));
 
     // Fast entry: Customer → Tab → Phone → Tab → Purpose → Tab → Notes → Enter submits
     document.getElementById('apptCustomerName').addEventListener('keydown', function(e) {
@@ -633,7 +643,11 @@ function showEventDetail() {
     actions += '<button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>';
     document.getElementById('eventActions').innerHTML = actions;
 
-    new bootstrap.Modal(document.getElementById('eventDetailModal')).show();
+    // Only show if not already visible (prevents backdrop stacking)
+    var modalEl = document.getElementById('eventDetailModal');
+    if (!modalEl.classList.contains('show')) {
+        eventDetailModal.show();
+    }
 }
 
 // ─── Edit Mode ───
@@ -716,7 +730,7 @@ function saveEdit() {
         return r.json();
     }).then(function(d) {
         if (d.status === 'updated') {
-            bootstrap.Modal.getInstance(document.getElementById('eventDetailModal')).hide();
+            eventDetailModal.hide();
             calendar.refetchEvents();
         }
     }).catch(function(err) {
@@ -737,7 +751,7 @@ function deleteAppointment() {
         return r.json();
     }).then(function(d) {
         if (d.status === 'deleted') {
-            bootstrap.Modal.getInstance(document.getElementById('eventDetailModal')).hide();
+            eventDetailModal.hide();
             calendar.refetchEvents();
         }
     }).catch(function(err) {
@@ -758,7 +772,7 @@ function updateStatus(newStatus) {
         return r.json();
     }).then(function(d) {
         if (d.status === 'updated') {
-            bootstrap.Modal.getInstance(document.getElementById('eventDetailModal')).hide();
+            eventDetailModal.hide();
             calendar.refetchEvents();
         }
     }).catch(function(err) {
@@ -830,7 +844,7 @@ function saveAppointment() {
         return r.json();
     }).then(function(d) {
         if (d.status === 'created') {
-            bootstrap.Modal.getInstance(document.getElementById('appointmentModal')).hide();
+            appointmentModal.hide();
             calendar.refetchEvents();
             document.getElementById('appointmentForm').reset();
         } else {
@@ -860,7 +874,7 @@ function openNewNote(dateStr) {
         '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
         '<button type="button" class="btn btn-primary" onclick="saveNote()">Save Note</button>';
 
-    new bootstrap.Modal(document.getElementById('noteModal')).show();
+    noteModal.show();
     setTimeout(function() { document.getElementById('noteContent').focus(); }, 300);
 }
 
@@ -889,7 +903,7 @@ function saveNote() {
         return r.json();
     }).then(function(d) {
         if (d.status === 'created' || d.status === 'updated') {
-            bootstrap.Modal.getInstance(document.getElementById('noteModal')).hide();
+            noteModal.hide();
             calendar.refetchEvents();
         }
     }).catch(function(err) {
@@ -904,7 +918,7 @@ function showNoteDetail(noteId, content, date, time) {
         '<small class="text-muted">' + date + timeStr + '</small>';
 
     document.getElementById('noteEditBtn').onclick = function() {
-        bootstrap.Modal.getInstance(document.getElementById('noteDetailModal')).hide();
+        noteDetailModal.hide();
         document.getElementById('noteId').value = noteId;
         document.getElementById('noteModalTitle').textContent = 'Edit Note';
         document.getElementById('noteDate').value = date;
@@ -914,7 +928,7 @@ function showNoteDetail(noteId, content, date, time) {
         footer.innerHTML =
             '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
             '<button type="button" class="btn btn-primary" onclick="saveNote()">Save Note</button>';
-        new bootstrap.Modal(document.getElementById('noteModal')).show();
+        noteModal.show();
     };
 
     document.getElementById('noteDeleteBtn').onclick = function() {
@@ -929,7 +943,7 @@ function showNoteDetail(noteId, content, date, time) {
             return r.json();
         }).then(function(d) {
             if (d.status === 'deleted') {
-                bootstrap.Modal.getInstance(document.getElementById('noteDetailModal')).hide();
+                noteDetailModal.hide();
                 calendar.refetchEvents();
             }
         }).catch(function(err) {
@@ -937,7 +951,7 @@ function showNoteDetail(noteId, content, date, time) {
         });
     };
 
-    new bootstrap.Modal(document.getElementById('noteDetailModal')).show();
+    noteDetailModal.show();
 }
 
 // ─── Inventory Functions ───
