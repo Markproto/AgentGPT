@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST, require_http_methods
 
 from .forms import CustomerForm, AppointmentForm, TextTemplateForm, SendTextForm, LoginForm
 from .models import Customer, Interaction, TextTemplate, Match, Appointment, CallLog, DayNote, InventoryNeed
+from .services import fetch_metal_prices
 
 logger = logging.getLogger(__name__)
 
@@ -1881,3 +1882,41 @@ def inventory_for_appointment(request):
         for item in items
     ]
     return JsonResponse({"items": data})
+
+
+# ============================================================================
+# Prices API
+# ============================================================================
+
+
+@login_required
+def prices_api(request):
+    """
+    API endpoint for live precious metal prices.
+
+    Returns real-time bid/ask prices from Fortune Reserve (FizTrade/Dillon Gage).
+    Prices are cached for 60 seconds.
+
+    Response format:
+    {
+        "success": true,
+        "prices": [
+            {
+                "metal": "XAU",
+                "name": "Gold",
+                "bid": 2650.80,
+                "ask": 2652.40,
+                "spot": 2651.60,
+                "spread": 1.60,
+                "change": -12.50,
+                "changePercent": -0.47
+            },
+            ...
+        ],
+        "timestamp": "Thursday, Jan 16 10:30:00 AM",
+        "source": "FizTrade via Fortune Reserve",
+        "cached": false
+    }
+    """
+    data = fetch_metal_prices()
+    return JsonResponse(data)

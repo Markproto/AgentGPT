@@ -56,4 +56,6 @@ urlpatterns = [
     path("api/dashboard/stats/", api_views.dashboard_stats_api, name="dashboard_stats_api"),
     path("api/customers/search/", api_views.customer_search_api, name="customer_search_api"),
     path("api/interactions/create/", api_views.interaction_create_api, name="interaction_create_api"),
+    # Prices API
+    path("api/prices/", views.prices_api, name="prices_api"),
 ]
