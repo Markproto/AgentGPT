@@ -346,6 +346,8 @@ def matching_view(request):
         "accepted_matches": accepted_matches,
         "completed_matches": completed_matches,
         "balance": balance,
+        "customers": Customer.objects.all().order_by("name"),
+        "bullion_types": Customer.BullionType.choices,
     }
     return render(request, "matching.html", context)
 
@@ -439,6 +441,77 @@ def match_action(request, pk, action):
 
     match.save()
     return JsonResponse({"status": "success", "new_status": match.status})
+
+
+@login_required
+@require_POST
+def manual_match(request):
+    """Create a manual match for consignment sales."""
+    try:
+        body = json.loads(request.body)
+
+        # Get or create buyer
+        buyer_id = body.get("buyer_id")
+        buyer_name = body.get("buyer_name", "").strip()
+        if buyer_id:
+            buyer = get_object_or_404(Customer, pk=buyer_id)
+        elif buyer_name:
+            buyer, _ = Customer.objects.get_or_create(
+                name__iexact=buyer_name,
+                defaults={
+                    "name": buyer_name,
+                    "category": Customer.Category.BUY_BULLION,
+                    "status": Customer.Status.CLOSED,
+                },
+            )
+        else:
+            return JsonResponse({"error": "Buyer is required"}, status=400)
+
+        # Get or create seller (consignor)
+        seller_id = body.get("seller_id")
+        seller_name = body.get("seller_name", "").strip()
+        if seller_id:
+            seller = get_object_or_404(Customer, pk=seller_id)
+        elif seller_name:
+            seller, _ = Customer.objects.get_or_create(
+                name__iexact=seller_name,
+                defaults={
+                    "name": seller_name,
+                    "category": Customer.Category.SELL_BULLION,
+                    "status": Customer.Status.CLOSED,
+                },
+            )
+        else:
+            return JsonResponse({"error": "Seller/Consignor is required"}, status=400)
+
+        # Create the match
+        amount = Decimal(body.get("amount", "0"))
+        if amount <= 0:
+            return JsonResponse({"error": "Amount must be greater than 0"}, status=400)
+
+        bullion_type = body.get("bullion_type", "GOLD")
+        product = body.get("product", "").strip()
+        notes = body.get("notes", "").strip()
+
+        match = Match.objects.create(
+            buyer=buyer,
+            seller=seller,
+            amount=amount,
+            bullion_type=bullion_type,
+            status=Match.Status.COMPLETED,  # Manual matches go straight to completed
+            profit_margin=body.get("profit_margin") or None,
+            notes=f"{product}\n{notes}".strip() if product or notes else "",
+        )
+
+        # Mark both parties as closed since this is a completed transaction
+        buyer.status = Customer.Status.CLOSED
+        seller.status = Customer.Status.CLOSED
+        buyer.save(update_fields=["status"])
+        seller.save(update_fields=["status"])
+
+        return JsonResponse({"status": "created", "id": match.id})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
 
 
 # ============================================================================

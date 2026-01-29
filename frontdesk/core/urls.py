@@ -19,6 +19,7 @@ urlpatterns = [
     # Matching
     path("matching/", views.matching_view, name="matching"),
     path("matching/generate/", views.generate_matches, name="generate_matches"),
+    path("matching/manual/", views.manual_match, name="manual_match"),
     path("matching/<int:pk>/<str:action>/", views.match_action, name="match_action"),
     # Appointments
     path("appointments/", views.appointment_list, name="appointment_list"),
