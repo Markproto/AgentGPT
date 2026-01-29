@@ -396,6 +396,8 @@ let currentEventId = null;
 let currentEventData = null;
 let editMode = false;
 let dayNotes = [];
+let lastEventHash = '';
+let pollInterval = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     const el = document.getElementById('calendar');
@@ -552,6 +554,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     calendar.render();
+
+    // Start polling for real-time updates (every 10 seconds)
+    startCalendarPolling();
 
     // Fast entry: Customer → Tab → Phone → Tab → Purpose → Tab → Notes → Enter submits
     document.getElementById('apptCustomerName').addEventListener('keydown', function(e) {
@@ -973,6 +978,81 @@ document.querySelectorAll('input[name="apptAction"]').forEach(function(el) {
 });
 document.querySelectorAll('input[name="apptMetal"]').forEach(function(el) {
     el.addEventListener('change', onInventorySelect);
+});
+
+// ─── Auto-refresh Polling ───
+function startCalendarPolling() {
+    // Poll every 10 seconds for changes
+    pollInterval = setInterval(checkForUpdates, 10000);
+    // Also update hash initially
+    updateEventHash();
+}
+
+function updateEventHash() {
+    // Create a simple hash of current appointments for comparison
+    fetch('/frontdesk/appointments/api/', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(events) {
+            lastEventHash = generateHash(events);
+        });
+}
+
+function generateHash(events) {
+    // Create a string representation of event data for comparison
+    var sortedEvents = events.sort(function(a, b) { return a.id - b.id; });
+    var str = sortedEvents.map(function(e) {
+        return e.id + ':' + e.start + ':' + e.end + ':' + (e.extendedProps ? e.extendedProps.status : '') + ':' + e.title;
+    }).join('|');
+    // Simple string hash
+    var hash = 0;
+    for (var i = 0; i < str.length; i++) {
+        var char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return hash.toString();
+}
+
+function checkForUpdates() {
+    // Don't poll if a modal is open (user is editing)
+    var appointmentModal = document.getElementById('appointmentModal');
+    var eventDetailModal = document.getElementById('eventDetailModal');
+    var noteModal = document.getElementById('noteModal');
+
+    if (appointmentModal.classList.contains('show') ||
+        eventDetailModal.classList.contains('show') ||
+        noteModal.classList.contains('show')) {
+        return;
+    }
+
+    fetch('/frontdesk/appointments/api/', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(events) {
+            var newHash = generateHash(events);
+            if (newHash !== lastEventHash) {
+                lastEventHash = newHash;
+                // Refetch events - this keeps the current view position
+                calendar.refetchEvents();
+            }
+        })
+        .catch(function(err) {
+            // Silently ignore polling errors (network issues, etc.)
+        });
+}
+
+// Stop polling when page is hidden, resume when visible
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+        }
+    } else {
+        if (!pollInterval) {
+            checkForUpdates(); // Check immediately when returning
+            pollInterval = setInterval(checkForUpdates, 10000);
+        }
+    }
 });
 </script>
 {% endblock %}
