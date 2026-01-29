@@ -195,6 +195,28 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Inventory Link Section -->
+                    <div class="mb-3 p-2 border rounded" id="apptInventorySection">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-box-seam text-primary"></i>
+                            <span class="fw-bold">Link to Inventory</span>
+                            <small class="text-muted">(optional)</small>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-8">
+                                <select id="apptInventoryNeed" class="form-select form-select-sm" onchange="onInventorySelect()">
+                                    <option value="">-- Select Inventory Need --</option>
+                                </select>
+                            </div>
+                            <div class="col-4">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">Qty</span>
+                                    <input type="number" id="apptQuantity" class="form-control" min="1" value="" placeholder="0">
+                                </div>
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mt-1">When completed, this quantity will fulfill the inventory need.</small>
+                    </div>
                     <button type="submit" class="d-none"></button>
                 </form>
             </div>
@@ -282,6 +304,26 @@
                                     <label class="btn btn-outline-success" for="editFormScrap">Scrap</label>
                                     <input type="radio" class="btn-check" name="editForm" id="editFormOther" value="OTHER">
                                     <label class="btn btn-outline-success" for="editFormOther">Other</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Inventory Link Section (Edit) -->
+                    <div class="mb-3 p-2 border rounded">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-box-seam text-primary"></i>
+                            <span class="fw-bold">Inventory Link</span>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-8">
+                                <select id="editInventoryNeed" class="form-select form-select-sm">
+                                    <option value="">-- No Inventory Link --</option>
+                                </select>
+                            </div>
+                            <div class="col-4">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">Qty</span>
+                                    <input type="number" id="editQuantity" class="form-control" min="1" value="" placeholder="0">
                                 </div>
                             </div>
                         </div>
@@ -448,6 +490,9 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('apptFormNone').checked = true;
             document.getElementById('apptDatetime').value = info.startStr.slice(0, 16);
             if (info.endStr) document.getElementById('apptEndDatetime').value = info.endStr.slice(0, 16);
+            document.getElementById('apptInventoryNeed').innerHTML = '<option value="">-- Select Inventory Need --</option>';
+            document.getElementById('apptQuantity').value = '';
+            loadInventoryOptions('apptInventoryNeed', '', '');
             new bootstrap.Modal(document.getElementById('appointmentModal')).show();
             setTimeout(function() { document.getElementById('apptCustomerName').focus(); }, 300);
         },
@@ -473,7 +518,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 notes: props.notes || '',
                 status: props.status || 'SCHEDULED',
                 start: info.event.start,
-                end: info.event.end
+                end: info.event.end,
+                inventory_need_id: props.inventory_need_id || '',
+                quantity: props.quantity || ''
             };
             showEventDetail();
         },
@@ -620,6 +667,9 @@ function startEdit() {
             String(e.getDate()).padStart(2,'0') + 'T' +
             String(e.getHours()).padStart(2,'0') + ':' + String(e.getMinutes()).padStart(2,'0');
     }
+    // Populate inventory fields
+    loadInventoryOptions('editInventoryNeed', d.action, d.metal, d.inventory_need_id);
+    document.getElementById('editQuantity').value = d.quantity || '';
 
     var actions = '';
     actions += '<button class="btn btn-primary" onclick="saveEdit()"><i class="bi bi-check-lg"></i> Save Changes</button>';
@@ -646,6 +696,8 @@ function saveEdit() {
     body.action = eActionEl ? eActionEl.value : '';
     body.metal = eMetalEl ? eMetalEl.value : '';
     body.metal_form = eFormEl ? eFormEl.value : '';
+    body.inventory_need_id = document.getElementById('editInventoryNeed').value || null;
+    body.quantity = document.getElementById('editQuantity').value || null;
     if (dt) body.datetime = new Date(dt).toISOString();
     if (endDt) body.end_datetime = new Date(endDt).toISOString();
 
@@ -746,6 +798,8 @@ function saveAppointment() {
     var action = actionEl ? actionEl.value : '';
     var metal = metalEl ? metalEl.value : '';
     var metalForm = formEl ? formEl.value : '';
+    var inventoryNeedId = document.getElementById('apptInventoryNeed').value;
+    var quantity = document.getElementById('apptQuantity').value;
 
     var formData = new FormData();
     formData.append('customer', customerId);
@@ -754,6 +808,8 @@ function saveAppointment() {
     if (action) formData.append('action', action);
     if (metal) formData.append('metal', metal);
     if (metalForm) formData.append('metal_form', metalForm);
+    if (inventoryNeedId) formData.append('inventory_need_id', inventoryNeedId);
+    if (quantity) formData.append('quantity', quantity);
     formData.append('iso_datetime', isoStart);
     if (isoEnd) formData.append('iso_end_datetime', isoEnd);
     formData.append('purpose', purpose);
@@ -878,5 +934,45 @@ function showNoteDetail(noteId, content, date, time) {
 
     new bootstrap.Modal(document.getElementById('noteDetailModal')).show();
 }
+
+// ─── Inventory Functions ───
+function loadInventoryOptions(selectId, customerAction, metal, selectedId) {
+    var select = document.getElementById(selectId);
+    select.innerHTML = '<option value="">-- No Inventory Link --</option>';
+
+    // Build query params
+    var params = new URLSearchParams();
+    if (customerAction) params.set('customer_action', customerAction);
+    if (metal) params.set('metal', metal);
+
+    fetch('/frontdesk/inventory/for-appointment/?' + params.toString(), { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var items = d.items || [];
+            items.forEach(function(item) {
+                var opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.display + ' (' + item.quantity_remaining + ' left)';
+                if (selectedId && parseInt(selectedId) === item.id) opt.selected = true;
+                select.appendChild(opt);
+            });
+        });
+}
+
+function onInventorySelect() {
+    var actionEl = document.querySelector('input[name="apptAction"]:checked');
+    var metalEl = document.querySelector('input[name="apptMetal"]:checked');
+    var action = actionEl ? actionEl.value : '';
+    var metal = metalEl ? metalEl.value : '';
+    loadInventoryOptions('apptInventoryNeed', action, metal);
+}
+
+// Reload inventory options when action/metal changes in new appointment form
+document.querySelectorAll('input[name="apptAction"]').forEach(function(el) {
+    el.addEventListener('change', onInventorySelect);
+});
+document.querySelectorAll('input[name="apptMetal"]').forEach(function(el) {
+    el.addEventListener('change', onInventorySelect);
+});
 </script>
 {% endblock %}

@@ -238,6 +238,19 @@ class Appointment(models.Model):
         blank=True,
         related_name="appointments",
     )
+    inventory_need = models.ForeignKey(
+        "InventoryNeed",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appointments",
+        help_text="Linked inventory need this appointment fulfills",
+    )
+    quantity = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Quantity of product for this appointment",
+    )
     datetime = models.DateTimeField()
     end_datetime = models.DateTimeField(null=True, blank=True)
     purpose = models.CharField(max_length=255)
@@ -271,6 +284,62 @@ class DayNote(models.Model):
 
     def __str__(self):
         return f"Note: {self.content[:50]} ({self.date})"
+
+
+class InventoryNeed(models.Model):
+    """Track inventory needs - what you need to buy or sell."""
+
+    class Action(models.TextChoices):
+        BUY = "BUY", "Buy"      # You want to BUY (looking for sellers)
+        SELL = "SELL", "Sell"  # You want to SELL (looking for buyers)
+
+    class Status(models.TextChoices):
+        OPEN = "OPEN", "Open"
+        PARTIAL = "PARTIAL", "Partially Filled"
+        FILLED = "FILLED", "Filled"
+        CANCELED = "CANCELED", "Canceled"
+
+    action = models.CharField(max_length=4, choices=Action.choices)
+    product = models.CharField(max_length=100, help_text="e.g., Gold Eagle, Silver Bar")
+    metal = models.CharField(
+        max_length=10,
+        choices=Customer.Metal.choices,
+        blank=True,
+        default="",
+    )
+    size = models.CharField(max_length=50, blank=True, default="", help_text="e.g., 1 oz, 10 oz, 1 kg")
+    quantity_needed = models.IntegerField(default=1)
+    quantity_fulfilled = models.IntegerField(default=0)
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.OPEN,
+    )
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Inventory Need"
+        verbose_name_plural = "Inventory Needs"
+
+    def __str__(self):
+        return f"{self.get_action_display()} {self.quantity_needed}x {self.product} ({self.size})"
+
+    @property
+    def quantity_remaining(self):
+        return max(0, self.quantity_needed - self.quantity_fulfilled)
+
+    def update_status(self):
+        """Update status based on fulfillment."""
+        if self.quantity_fulfilled >= self.quantity_needed:
+            self.status = self.Status.FILLED
+        elif self.quantity_fulfilled > 0:
+            self.status = self.Status.PARTIAL
+        else:
+            self.status = self.Status.OPEN
+        self.save(update_fields=["status"])
 
 
 class CallLog(models.Model):

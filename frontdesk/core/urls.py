@@ -47,6 +47,10 @@ urlpatterns = [
     path("sms/webhook/", views.sms_webhook, name="sms_webhook"),
     # Integration Guide
     path("guide/", views.integration_guide, name="integration_guide"),
+    # Inventory Management
+    path("inventory/", views.inventory_view, name="inventory"),
+    path("inventory/api/", views.inventory_api, name="inventory_api"),
+    path("inventory/for-appointment/", views.inventory_for_appointment, name="inventory_for_appointment"),
     # Additional APIs
     path("api/dashboard/stats/", api_views.dashboard_stats_api, name="dashboard_stats_api"),
     path("api/customers/search/", api_views.customer_search_api, name="customer_search_api"),

@@ -21,7 +21,7 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST, require_http_methods
 
 from .forms import CustomerForm, AppointmentForm, TextTemplateForm, SendTextForm, LoginForm
-from .models import Customer, Interaction, TextTemplate, Match, Appointment, CallLog, DayNote
+from .models import Customer, Interaction, TextTemplate, Match, Appointment, CallLog, DayNote, InventoryNeed
 
 logger = logging.getLogger(__name__)
 
@@ -576,12 +576,24 @@ def appointment_create(request):
         else:
             end_dt = dt + timedelta(minutes=duration_minutes)
 
+        # Handle inventory link
+        inventory_need = None
+        inventory_need_id = request.POST.get("inventory_need_id", "").strip()
+        quantity = request.POST.get("quantity", "").strip()
+        if inventory_need_id:
+            try:
+                inventory_need = InventoryNeed.objects.get(pk=int(inventory_need_id))
+            except (InventoryNeed.DoesNotExist, ValueError):
+                pass
+
         appointment = Appointment.objects.create(
             customer=customer,
             datetime=dt,
             end_datetime=end_dt,
             purpose=purpose,
             location="J. Austin",
+            inventory_need=inventory_need,
+            quantity=int(quantity) if quantity else None,
         )
 
         return JsonResponse(
@@ -641,6 +653,8 @@ def appointment_api(request):
                         "status": appt.status,
                         "notes": appt.notes,
                         "duration_minutes": duration_min,
+                        "inventory_need_id": appt.inventory_need_id,
+                        "quantity": appt.quantity,
                     },
                 }
             )
@@ -668,7 +682,16 @@ def appointment_api(request):
 
                 appt.end_datetime = parse(body["end_datetime"])
             if "status" in body:
-                appt.status = body["status"]
+                old_status = appt.status
+                new_status = body["status"]
+                appt.status = new_status
+                # When marking COMPLETED, fulfill linked inventory need
+                if new_status == "COMPLETED" and old_status != "COMPLETED":
+                    if appt.inventory_need and appt.quantity:
+                        inv = appt.inventory_need
+                        inv.quantity_fulfilled = inv.quantity_fulfilled + appt.quantity
+                        inv.save(update_fields=["quantity_fulfilled"])
+                        inv.update_status()
             if "notes" in body:
                 appt.notes = body["notes"]
             if "purpose" in body:
@@ -708,6 +731,27 @@ def appointment_api(request):
                 cust_fields.append("metal_form")
             if cust_fields:
                 cust.save(update_fields=cust_fields)
+
+            # Handle inventory link updates
+            appt_fields = []
+            if "inventory_need_id" in body:
+                inv_id = body["inventory_need_id"]
+                if inv_id:
+                    try:
+                        inv = InventoryNeed.objects.get(pk=int(inv_id))
+                        appt.inventory_need = inv
+                    except (InventoryNeed.DoesNotExist, ValueError):
+                        appt.inventory_need = None
+                else:
+                    appt.inventory_need = None
+                appt_fields.append("inventory_need")
+            if "quantity" in body:
+                qty = body["quantity"]
+                appt.quantity = int(qty) if qty else None
+                appt_fields.append("quantity")
+            if appt_fields:
+                appt.save(update_fields=appt_fields)
+
             return JsonResponse({"status": "updated"})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
@@ -1575,3 +1619,179 @@ def sms_webhook(request):
 def integration_guide(request):
     """Display the integration setup guide."""
     return render(request, "integration_guide.html")
+
+
+# ============================================================================
+# Inventory Management
+# ============================================================================
+
+
+@login_required
+def inventory_view(request):
+    """Inventory needs management page."""
+    inventory_items = InventoryNeed.objects.all()
+    context = {
+        "inventory_items": inventory_items,
+        "actions": InventoryNeed.Action.choices,
+        "metals": Customer.Metal.choices,
+        "statuses": InventoryNeed.Status.choices,
+    }
+    return render(request, "inventory.html", context)
+
+
+@login_required
+@require_http_methods(["GET", "POST", "PUT", "DELETE"])
+def inventory_api(request):
+    """API for inventory CRUD operations."""
+
+    # GET - list all inventory items (with optional filters)
+    if request.method == "GET":
+        items = InventoryNeed.objects.all()
+
+        # Filter by action
+        action = request.GET.get("action")
+        if action:
+            items = items.filter(action=action)
+
+        # Filter by status
+        status = request.GET.get("status")
+        if status:
+            items = items.filter(status=status)
+
+        # Filter by metal
+        metal = request.GET.get("metal")
+        if metal:
+            items = items.filter(metal=metal)
+
+        data = [
+            {
+                "id": item.id,
+                "action": item.action,
+                "action_display": item.get_action_display(),
+                "product": item.product,
+                "metal": item.metal,
+                "metal_display": item.get_metal_display() if item.metal else "",
+                "size": item.size,
+                "quantity_needed": item.quantity_needed,
+                "quantity_fulfilled": item.quantity_fulfilled,
+                "quantity_remaining": item.quantity_remaining,
+                "status": item.status,
+                "status_display": item.get_status_display(),
+                "notes": item.notes,
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in items
+        ]
+        return JsonResponse({"items": data})
+
+    # POST - create new inventory item
+    if request.method == "POST":
+        try:
+            body = json.loads(request.body)
+            item = InventoryNeed.objects.create(
+                action=body.get("action", "BUY"),
+                product=body.get("product", "").strip(),
+                metal=body.get("metal", ""),
+                size=body.get("size", "").strip(),
+                quantity_needed=int(body.get("quantity_needed", 1)),
+                notes=body.get("notes", "").strip(),
+            )
+            return JsonResponse({"status": "created", "id": item.id})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+    # PUT - update inventory item
+    if request.method == "PUT":
+        try:
+            body = json.loads(request.body)
+            item_id = body.get("id")
+            item = get_object_or_404(InventoryNeed, pk=item_id)
+
+            update_fields = []
+            if "action" in body:
+                item.action = body["action"]
+                update_fields.append("action")
+            if "product" in body:
+                item.product = body["product"].strip()
+                update_fields.append("product")
+            if "metal" in body:
+                item.metal = body["metal"]
+                update_fields.append("metal")
+            if "size" in body:
+                item.size = body["size"].strip()
+                update_fields.append("size")
+            if "quantity_needed" in body:
+                item.quantity_needed = int(body["quantity_needed"])
+                update_fields.append("quantity_needed")
+            if "quantity_fulfilled" in body:
+                item.quantity_fulfilled = int(body["quantity_fulfilled"])
+                update_fields.append("quantity_fulfilled")
+            if "status" in body:
+                item.status = body["status"]
+                update_fields.append("status")
+            if "notes" in body:
+                item.notes = body["notes"].strip()
+                update_fields.append("notes")
+
+            if update_fields:
+                item.save(update_fields=update_fields)
+                # Auto-update status based on fulfillment
+                item.update_status()
+
+            return JsonResponse({"status": "updated"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+    # DELETE - delete inventory item
+    if request.method == "DELETE":
+        try:
+            body = json.loads(request.body)
+            item_id = body.get("id")
+            item = get_object_or_404(InventoryNeed, pk=item_id)
+            item.delete()
+            return JsonResponse({"status": "deleted"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+def inventory_for_appointment(request):
+    """API to get open inventory items that match an appointment's criteria.
+
+    When appointment is SELLING, show inventory items where we need to BUY.
+    When appointment is BUYING, show inventory items where we need to SELL.
+    """
+    # Customer action (what customer is doing)
+    customer_action = request.GET.get("customer_action", "")
+    metal = request.GET.get("metal", "")
+
+    # Opposite action: customer SELLING means we BUY, customer BUYING means we SELL
+    if customer_action == "SELLING":
+        inventory_action = "BUY"
+    elif customer_action == "BUYING":
+        inventory_action = "SELL"
+    else:
+        inventory_action = None
+
+    items = InventoryNeed.objects.filter(status__in=["OPEN", "PARTIAL"])
+
+    if inventory_action:
+        items = items.filter(action=inventory_action)
+    if metal:
+        items = items.filter(metal=metal)
+
+    data = [
+        {
+            "id": item.id,
+            "action": item.action,
+            "product": item.product,
+            "metal": item.metal,
+            "size": item.size,
+            "quantity_needed": item.quantity_needed,
+            "quantity_fulfilled": item.quantity_fulfilled,
+            "quantity_remaining": item.quantity_remaining,
+            "display": f"{item.get_action_display()} {item.quantity_remaining}x {item.product} {item.size}".strip(),
+        }
+        for item in items
+    ]
+    return JsonResponse({"items": data})

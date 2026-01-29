@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+{% block title %}Inventory - J. Austin{% endblock %}
+{% block page_title %}Inventory Management{% endblock %}
+
+{% block extra_css %}
+<style>
+.inv-card { transition: all 0.2s; }
+.inv-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.action-buy { border-left: 4px solid #198754; }
+.action-sell { border-left: 4px solid #0d6efd; }
+.status-badge { font-size: 0.75rem; padding: 0.2rem 0.5rem; }
+.progress-bar { transition: width 0.3s; }
+.qty-remaining { font-size: 1.8rem; font-weight: 700; }
+.qty-label { font-size: 0.75rem; color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Toolbar -->
+<div class="card mb-3">
+    <div class="card-body d-flex gap-2 flex-wrap align-items-center">
+        <button class="btn btn-primary" onclick="openAddModal()">
+            <i class="bi bi-plus-lg"></i> Add Inventory Need
+        </button>
+        <div class="ms-auto d-flex gap-2 align-items-center">
+            <label class="mb-0 text-muted">Filter:</label>
+            <select id="actionFilter" class="form-select form-select-sm" style="width:100px" onchange="loadInventory()">
+                <option value="">All</option>
+                {% for value, label in actions %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select id="metalFilter" class="form-select form-select-sm" style="width:120px" onchange="loadInventory()">
+                <option value="">All Metals</option>
+                {% for value, label in metals %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select id="statusFilter" class="form-select form-select-sm" style="width:140px" onchange="loadInventory()">
+                <option value="">All Status</option>
+                {% for value, label in statuses %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-3">
+    <div class="col-md-3 col-6 mb-2">
+        <div class="card bg-success text-white">
+            <div class="card-body py-2 text-center">
+                <div class="fs-4 fw-bold" id="buyCount">0</div>
+                <small>Need to Buy</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-2">
+        <div class="card bg-primary text-white">
+            <div class="card-body py-2 text-center">
+                <div class="fs-4 fw-bold" id="sellCount">0</div>
+                <small>Need to Sell</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-2">
+        <div class="card bg-warning text-dark">
+            <div class="card-body py-2 text-center">
+                <div class="fs-4 fw-bold" id="partialCount">0</div>
+                <small>Partially Filled</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-2">
+        <div class="card bg-secondary text-white">
+            <div class="card-body py-2 text-center">
+                <div class="fs-4 fw-bold" id="filledCount">0</div>
+                <small>Filled</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Inventory Cards -->
+<div class="row" id="inventoryGrid">
+    <!-- Cards loaded via JS -->
+</div>
+
+<!-- Empty State -->
+<div id="emptyState" class="text-center py-5" style="display:none;">
+    <i class="bi bi-box-seam text-muted" style="font-size:4rem;"></i>
+    <h5 class="mt-3 text-muted">No inventory needs</h5>
+    <p class="text-muted">Click "Add Inventory Need" to track what you need to buy or sell.</p>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal fade" id="inventoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Add Inventory Need</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editId" value="">
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">What do you need to do?</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="invAction" id="actionBuy" value="BUY" checked>
+                        <label class="btn btn-outline-success" for="actionBuy"><i class="bi bi-cart-plus"></i> Buy</label>
+                        <input type="radio" class="btn-check" name="invAction" id="actionSell" value="SELL">
+                        <label class="btn btn-outline-primary" for="actionSell"><i class="bi bi-cart-dash"></i> Sell</label>
+                    </div>
+                    <small class="text-muted d-block mt-1">
+                        <strong>Buy</strong> = You want to acquire this product (looking for sellers)<br>
+                        <strong>Sell</strong> = You have this product to sell (looking for buyers)
+                    </small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Product</label>
+                    <input type="text" id="invProduct" class="form-control" placeholder="e.g., Gold Eagle, Silver Bar, Maple Leaf" required>
+                </div>
+
+                <div class="row">
+                    <div class="col-6">
+                        <div class="mb-3">
+                            <label class="form-label">Quantity</label>
+                            <input type="number" id="invQuantity" class="form-control" min="1" value="1" required>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="mb-3">
+                            <label class="form-label">Size</label>
+                            <input type="text" id="invSize" class="form-control" placeholder="e.g., 1 oz, 10 oz, 1 kg">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Metal</label>
+                    <select id="invMetal" class="form-select">
+                        <option value="">-- Select Metal --</option>
+                        {% for value, label in metals %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    <textarea id="invNotes" class="form-control" rows="2" placeholder="Any additional details..."></textarea>
+                </div>
+
+                <!-- Only show in edit mode -->
+                <div id="editOnlyFields" style="display:none;">
+                    <hr>
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <label class="form-label">Quantity Fulfilled</label>
+                                <input type="number" id="invFulfilled" class="form-control" min="0" value="0">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="mb-3">
+                                <label class="form-label">Status</label>
+                                <select id="invStatus" class="form-select">
+                                    {% for value, label in statuses %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger me-auto" id="deleteBtn" style="display:none;" onclick="deleteItem()">
+                    <i class="bi bi-trash"></i> Delete
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveItem()">
+                    <i class="bi bi-check-lg"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let inventoryData = [];
+let inventoryModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    inventoryModal = new bootstrap.Modal(document.getElementById('inventoryModal'));
+    loadInventory();
+});
+
+function loadInventory() {
+    const params = new URLSearchParams();
+    const action = document.getElementById('actionFilter').value;
+    const metal = document.getElementById('metalFilter').value;
+    const status = document.getElementById('statusFilter').value;
+    if (action) params.set('action', action);
+    if (metal) params.set('metal', metal);
+    if (status) params.set('status', status);
+
+    const url = '/frontdesk/inventory/api/' + (params.toString() ? '?' + params.toString() : '');
+
+    fetch(url, { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(d => {
+            inventoryData = d.items || [];
+            renderInventory();
+            updateCounts();
+        });
+}
+
+function renderInventory() {
+    const grid = document.getElementById('inventoryGrid');
+    const empty = document.getElementById('emptyState');
+
+    if (inventoryData.length === 0) {
+        grid.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+
+    empty.style.display = 'none';
+    grid.innerHTML = inventoryData.map(item => {
+        const actionClass = item.action === 'BUY' ? 'action-buy' : 'action-sell';
+        const actionIcon = item.action === 'BUY' ? 'bi-cart-plus text-success' : 'bi-cart-dash text-primary';
+        const pct = item.quantity_needed > 0 ? Math.round((item.quantity_fulfilled / item.quantity_needed) * 100) : 0;
+        const progressColor = pct >= 100 ? 'bg-success' : (pct > 0 ? 'bg-warning' : 'bg-secondary');
+
+        let statusBadge = '';
+        if (item.status === 'OPEN') statusBadge = '<span class="badge bg-primary status-badge">Open</span>';
+        else if (item.status === 'PARTIAL') statusBadge = '<span class="badge bg-warning text-dark status-badge">Partial</span>';
+        else if (item.status === 'FILLED') statusBadge = '<span class="badge bg-success status-badge">Filled</span>';
+        else if (item.status === 'CANCELED') statusBadge = '<span class="badge bg-secondary status-badge">Canceled</span>';
+
+        return `
+        <div class="col-lg-4 col-md-6 mb-3">
+            <div class="card inv-card h-100 ${actionClass}" onclick="editItem(${item.id})" style="cursor:pointer;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <i class="bi ${actionIcon}"></i>
+                            <span class="fw-bold ms-1">${item.action_display}</span>
+                            ${statusBadge}
+                        </div>
+                        <span class="text-muted small">#${item.id}</span>
+                    </div>
+                    <h5 class="card-title mb-1">${item.product}</h5>
+                    <p class="text-muted mb-2">
+                        ${item.size ? item.size + ' ' : ''}${item.metal_display || ''}
+                    </p>
+                    <div class="d-flex align-items-end justify-content-between">
+                        <div>
+                            <div class="qty-remaining">${item.quantity_remaining}</div>
+                            <div class="qty-label">of ${item.quantity_needed} remaining</div>
+                        </div>
+                        <div class="text-end" style="width:100px;">
+                            <div class="progress" style="height:8px;">
+                                <div class="progress-bar ${progressColor}" style="width:${pct}%"></div>
+                            </div>
+                            <small class="text-muted">${pct}% filled</small>
+                        </div>
+                    </div>
+                    ${item.notes ? '<p class="text-muted small mt-2 mb-0"><i class="bi bi-sticky"></i> ' + item.notes + '</p>' : ''}
+                </div>
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+
+function updateCounts() {
+    // Fetch all items (no filter) to get accurate counts
+    fetch('/frontdesk/inventory/api/', { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(d => {
+            const items = d.items || [];
+            const buyOpen = items.filter(i => i.action === 'BUY' && i.status !== 'FILLED' && i.status !== 'CANCELED').length;
+            const sellOpen = items.filter(i => i.action === 'SELL' && i.status !== 'FILLED' && i.status !== 'CANCELED').length;
+            const partial = items.filter(i => i.status === 'PARTIAL').length;
+            const filled = items.filter(i => i.status === 'FILLED').length;
+
+            document.getElementById('buyCount').textContent = buyOpen;
+            document.getElementById('sellCount').textContent = sellOpen;
+            document.getElementById('partialCount').textContent = partial;
+            document.getElementById('filledCount').textContent = filled;
+        });
+}
+
+function openAddModal() {
+    document.getElementById('modalTitle').textContent = 'Add Inventory Need';
+    document.getElementById('editId').value = '';
+    document.getElementById('actionBuy').checked = true;
+    document.getElementById('invProduct').value = '';
+    document.getElementById('invQuantity').value = '1';
+    document.getElementById('invSize').value = '';
+    document.getElementById('invMetal').value = '';
+    document.getElementById('invNotes').value = '';
+    document.getElementById('editOnlyFields').style.display = 'none';
+    document.getElementById('deleteBtn').style.display = 'none';
+    inventoryModal.show();
+    setTimeout(() => document.getElementById('invProduct').focus(), 300);
+}
+
+function editItem(id) {
+    const item = inventoryData.find(i => i.id === id);
+    if (!item) return;
+
+    document.getElementById('modalTitle').textContent = 'Edit Inventory Need';
+    document.getElementById('editId').value = id;
+
+    if (item.action === 'BUY') {
+        document.getElementById('actionBuy').checked = true;
+    } else {
+        document.getElementById('actionSell').checked = true;
+    }
+
+    document.getElementById('invProduct').value = item.product;
+    document.getElementById('invQuantity').value = item.quantity_needed;
+    document.getElementById('invSize').value = item.size;
+    document.getElementById('invMetal').value = item.metal;
+    document.getElementById('invNotes').value = item.notes;
+    document.getElementById('invFulfilled').value = item.quantity_fulfilled;
+    document.getElementById('invStatus').value = item.status;
+
+    document.getElementById('editOnlyFields').style.display = 'block';
+    document.getElementById('deleteBtn').style.display = 'inline-block';
+    inventoryModal.show();
+}
+
+function saveItem() {
+    const editId = document.getElementById('editId').value;
+    const action = document.querySelector('input[name="invAction"]:checked').value;
+    const product = document.getElementById('invProduct').value.trim();
+    const quantity = parseInt(document.getElementById('invQuantity').value) || 1;
+    const size = document.getElementById('invSize').value.trim();
+    const metal = document.getElementById('invMetal').value;
+    const notes = document.getElementById('invNotes').value.trim();
+
+    if (!product) {
+        alert('Please enter a product name.');
+        return;
+    }
+
+    const data = { action, product, quantity_needed: quantity, size, metal, notes };
+
+    if (editId) {
+        data.id = parseInt(editId);
+        data.quantity_fulfilled = parseInt(document.getElementById('invFulfilled').value) || 0;
+        data.status = document.getElementById('invStatus').value;
+    }
+
+    const method = editId ? 'PUT' : 'POST';
+
+    fetch('/frontdesk/inventory/api/', {
+        method: method,
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.status === 'created' || d.status === 'updated') {
+            inventoryModal.hide();
+            loadInventory();
+        } else {
+            alert('Error: ' + (d.error || 'Unknown error'));
+        }
+    })
+    .catch(e => alert('Error: ' + e.message));
+}
+
+function deleteItem() {
+    const editId = document.getElementById('editId').value;
+    if (!editId) return;
+
+    if (!confirm('Delete this inventory need? This cannot be undone.')) return;
+
+    fetch('/frontdesk/inventory/api/', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify({ id: parseInt(editId) })
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.status === 'deleted') {
+            inventoryModal.hide();
+            loadInventory();
+        } else {
+            alert('Error: ' + (d.error || 'Unknown error'));
+        }
+    })
+    .catch(e => alert('Error: ' + e.message));
+}
+</script>
+{% endblock %}
