@@ -48,7 +48,7 @@
 
 <!-- Summary Cards -->
 <div class="row mb-3">
-    <div class="col-md-3 col-6 mb-2">
+    <div class="col-md-2 col-6 mb-2">
         <div class="card bg-success text-white">
             <div class="card-body py-2 text-center">
                 <div class="fs-4 fw-bold" id="buyCount">0</div>
@@ -56,7 +56,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-6 mb-2">
+    <div class="col-md-2 col-6 mb-2">
         <div class="card bg-primary text-white">
             <div class="card-body py-2 text-center">
                 <div class="fs-4 fw-bold" id="sellCount">0</div>
@@ -64,7 +64,15 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-6 mb-2">
+    <div class="col-md-2 col-6 mb-2">
+        <div class="card bg-info text-white">
+            <div class="card-body py-2 text-center">
+                <div class="fs-4 fw-bold" id="pendingCount">0</div>
+                <small>Scheduled</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-6 mb-2">
         <div class="card bg-warning text-dark">
             <div class="card-body py-2 text-center">
                 <div class="fs-4 fw-bold" id="partialCount">0</div>
@@ -72,11 +80,11 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-6 mb-2">
-        <div class="card bg-secondary text-white">
-            <div class="card-body py-2 text-center">
+    <div class="col-md-2 col-6 mb-2">
+        <div class="card" style="background-color: #28a745;">
+            <div class="card-body py-2 text-center text-white">
                 <div class="fs-4 fw-bold" id="filledCount">0</div>
-                <small>Filled</small>
+                <small>Completed</small>
             </div>
         </div>
     </div>
@@ -235,14 +243,25 @@ function renderInventory() {
     grid.innerHTML = inventoryData.map(item => {
         const actionClass = item.action === 'BUY' ? 'action-buy' : 'action-sell';
         const actionIcon = item.action === 'BUY' ? 'bi-cart-plus text-success' : 'bi-cart-dash text-primary';
-        const pct = item.quantity_needed > 0 ? Math.round((item.quantity_fulfilled / item.quantity_needed) * 100) : 0;
-        const progressColor = pct >= 100 ? 'bg-success' : (pct > 0 ? 'bg-warning' : 'bg-secondary');
+        const totalProgress = item.quantity_pending + item.quantity_fulfilled;
+        const pctPending = item.quantity_needed > 0 ? Math.round((item.quantity_pending / item.quantity_needed) * 100) : 0;
+        const pctFulfilled = item.quantity_needed > 0 ? Math.round((item.quantity_fulfilled / item.quantity_needed) * 100) : 0;
+        const pctTotal = item.quantity_needed > 0 ? Math.round((totalProgress / item.quantity_needed) * 100) : 0;
 
         let statusBadge = '';
         if (item.status === 'OPEN') statusBadge = '<span class="badge bg-primary status-badge">Open</span>';
         else if (item.status === 'PARTIAL') statusBadge = '<span class="badge bg-warning text-dark status-badge">Partial</span>';
         else if (item.status === 'FILLED') statusBadge = '<span class="badge bg-success status-badge">Filled</span>';
         else if (item.status === 'CANCELED') statusBadge = '<span class="badge bg-secondary status-badge">Canceled</span>';
+
+        // Build progress breakdown
+        let progressInfo = '';
+        if (item.quantity_pending > 0) {
+            progressInfo += `<span class="badge bg-info me-1">${item.quantity_pending} scheduled</span>`;
+        }
+        if (item.quantity_fulfilled > 0) {
+            progressInfo += `<span class="badge bg-success">${item.quantity_fulfilled} bought</span>`;
+        }
 
         return `
         <div class="col-lg-4 col-md-6 mb-3">
@@ -263,14 +282,18 @@ function renderInventory() {
                     <div class="d-flex align-items-end justify-content-between">
                         <div>
                             <div class="qty-remaining">${item.quantity_remaining}</div>
-                            <div class="qty-label">of ${item.quantity_needed} remaining</div>
+                            <div class="qty-label">of ${item.quantity_needed} still needed</div>
                         </div>
-                        <div class="text-end" style="width:100px;">
-                            <div class="progress" style="height:8px;">
-                                <div class="progress-bar ${progressColor}" style="width:${pct}%"></div>
+                        <div class="text-end" style="width:120px;">
+                            <div class="progress" style="height:10px;">
+                                <div class="progress-bar bg-success" style="width:${pctFulfilled}%" title="${item.quantity_fulfilled} bought"></div>
+                                <div class="progress-bar bg-info" style="width:${pctPending}%" title="${item.quantity_pending} scheduled"></div>
                             </div>
-                            <small class="text-muted">${pct}% filled</small>
+                            <small class="text-muted">${pctTotal}% in progress</small>
                         </div>
+                    </div>
+                    <div class="mt-2">
+                        ${progressInfo || '<span class="text-muted small">No appointments scheduled</span>'}
                     </div>
                     ${item.notes ? '<p class="text-muted small mt-2 mb-0"><i class="bi bi-sticky"></i> ' + item.notes + '</p>' : ''}
                 </div>
@@ -288,11 +311,14 @@ function updateCounts() {
             const items = d.items || [];
             const buyOpen = items.filter(i => i.action === 'BUY' && i.status !== 'FILLED' && i.status !== 'CANCELED').length;
             const sellOpen = items.filter(i => i.action === 'SELL' && i.status !== 'FILLED' && i.status !== 'CANCELED').length;
+            // Count total items with pending appointments
+            const pendingItems = items.filter(i => i.quantity_pending > 0).length;
             const partial = items.filter(i => i.status === 'PARTIAL').length;
             const filled = items.filter(i => i.status === 'FILLED').length;
 
             document.getElementById('buyCount').textContent = buyOpen;
             document.getElementById('sellCount').textContent = sellOpen;
+            document.getElementById('pendingCount').textContent = pendingItems;
             document.getElementById('partialCount').textContent = partial;
             document.getElementById('filledCount').textContent = filled;
         });

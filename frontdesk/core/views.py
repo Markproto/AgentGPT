@@ -1673,6 +1673,7 @@ def inventory_api(request):
                 "metal_display": item.get_metal_display() if item.metal else "",
                 "size": item.size,
                 "quantity_needed": item.quantity_needed,
+                "quantity_pending": item.quantity_pending,
                 "quantity_fulfilled": item.quantity_fulfilled,
                 "quantity_remaining": item.quantity_remaining,
                 "status": item.status,

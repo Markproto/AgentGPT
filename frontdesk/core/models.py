@@ -328,8 +328,19 @@ class InventoryNeed(models.Model):
         return f"{self.get_action_display()} {self.quantity_needed}x {self.product} ({self.size})"
 
     @property
+    def quantity_pending(self):
+        """Calculate quantity from scheduled/confirmed appointments (not yet completed)."""
+        from django.db.models import Sum
+        pending_statuses = [Appointment.Status.SCHEDULED, Appointment.Status.CONFIRMED]
+        result = self.appointments.filter(status__in=pending_statuses).aggregate(
+            total=Sum('quantity')
+        )
+        return result['total'] or 0
+
+    @property
     def quantity_remaining(self):
-        return max(0, self.quantity_needed - self.quantity_fulfilled)
+        """Remaining = needed - fulfilled - pending"""
+        return max(0, self.quantity_needed - self.quantity_fulfilled - self.quantity_pending)
 
     def update_status(self):
         """Update status based on fulfillment."""
