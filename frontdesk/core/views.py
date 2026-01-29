@@ -679,7 +679,7 @@ def appointment_create(request):
             purpose=purpose,
             location="J. Austin",
             inventory_need=inventory_need,
-            quantity=int(quantity) if quantity else None,
+            quantity=Decimal(quantity) if quantity else None,
         )
 
         return JsonResponse(
@@ -833,7 +833,7 @@ def appointment_api(request):
                 appt_fields.append("inventory_need")
             if "quantity" in body:
                 qty = body["quantity"]
-                appt.quantity = int(qty) if qty else None
+                appt.quantity = Decimal(qty) if qty else None
                 appt_fields.append("quantity")
             if appt_fields:
                 appt.save(update_fields=appt_fields)
