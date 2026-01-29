@@ -246,10 +246,12 @@ class Appointment(models.Model):
         related_name="appointments",
         help_text="Linked inventory need this appointment fulfills",
     )
-    quantity = models.IntegerField(
+    quantity = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
         null=True,
         blank=True,
-        help_text="Quantity of product for this appointment",
+        help_text="Quantity of product for this appointment (oz)",
     )
     datetime = models.DateTimeField()
     end_datetime = models.DateTimeField(null=True, blank=True)
@@ -308,8 +310,8 @@ class InventoryNeed(models.Model):
         default="",
     )
     size = models.CharField(max_length=50, blank=True, default="", help_text="e.g., 1 oz, 10 oz, 1 kg")
-    quantity_needed = models.IntegerField(default=1)
-    quantity_fulfilled = models.IntegerField(default=0)
+    quantity_needed = models.DecimalField(max_digits=10, decimal_places=4, default=1)
+    quantity_fulfilled = models.DecimalField(max_digits=10, decimal_places=4, default=0)
     status = models.CharField(
         max_length=10,
         choices=Status.choices,
