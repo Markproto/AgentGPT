@@ -61,4 +61,6 @@ urlpatterns = [
     # Spread / Product Pricing
     path("spread/", views.spread_view, name="spread"),
     path("spread/api/", views.product_api, name="product_api"),
+    # High Command Alert System
+    path("api/highcommand/", views.highcommand_api, name="highcommand_api"),
 ]

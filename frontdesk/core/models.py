@@ -432,3 +432,30 @@ class CallLog(models.Model):
     def __str__(self):
         customer_name = self.customer.name if self.customer else "Unknown"
         return f"Call: {customer_name} - {self.phone_number} ({self.created_at:%Y-%m-%d %H:%M})"
+
+
+class HighCommandMessage(models.Model):
+    """Alert messages from High Command that flash across all screens."""
+
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        ACKNOWLEDGED = "ACKNOWLEDGED", "Acknowledged"
+        ARCHIVED = "ARCHIVED", "Archived"
+
+    message = models.TextField(help_text="The alert message from High Command")
+    sender_name = models.CharField(max_length=100, help_text="Name of the person sending the message")
+    status = models.CharField(
+        max_length=12,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+    )
+    response = models.TextField(blank=True, default="", help_text="Response to the message")
+    responder_name = models.CharField(max_length=100, blank=True, default="")
+    responded_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"High Command: {self.message[:50]}... ({self.status})"

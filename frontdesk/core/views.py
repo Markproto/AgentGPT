@@ -21,7 +21,7 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST, require_http_methods
 
 from .forms import CustomerForm, AppointmentForm, TextTemplateForm, SendTextForm, LoginForm
-from .models import Customer, Interaction, TextTemplate, Match, Appointment, CallLog, DayNote, InventoryNeed, Product
+from .models import Customer, Interaction, TextTemplate, Match, Appointment, CallLog, DayNote, InventoryNeed, Product, HighCommandMessage
 from .services import fetch_metal_prices
 
 logger = logging.getLogger(__name__)
@@ -2024,5 +2024,107 @@ def product_api(request):
             product = get_object_or_404(Product, pk=product_id)
             product.delete()
             return JsonResponse({"status": "deleted"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+
+# ============================================================================
+# High Command Alert System
+# ============================================================================
+
+HIGH_COMMAND_PASSWORD = "highcommand"
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def highcommand_api(request):
+    """
+    API for High Command alert system.
+    GET: Returns active message (if any)
+    POST: Create new message (requires password) or respond to message
+    """
+
+    # GET - Check for active message
+    if request.method == "GET":
+        active_msg = HighCommandMessage.objects.filter(status=HighCommandMessage.Status.ACTIVE).first()
+        if active_msg:
+            return JsonResponse({
+                "has_message": True,
+                "id": active_msg.id,
+                "message": active_msg.message,
+                "sender": active_msg.sender_name,
+                "created_at": active_msg.created_at.isoformat(),
+            })
+        return JsonResponse({"has_message": False})
+
+    # POST - Create message or respond
+    if request.method == "POST":
+        try:
+            body = json.loads(request.body)
+            action = body.get("action", "")
+
+            # Create new message (requires password)
+            if action == "send":
+                password = body.get("password", "")
+                if password != HIGH_COMMAND_PASSWORD:
+                    return JsonResponse({"error": "Invalid password"}, status=403)
+
+                message = body.get("message", "").strip()
+                sender = body.get("sender", "").strip()
+
+                if not message or not sender:
+                    return JsonResponse({"error": "Message and sender name required"}, status=400)
+
+                # Archive any existing active messages
+                HighCommandMessage.objects.filter(status=HighCommandMessage.Status.ACTIVE).update(
+                    status=HighCommandMessage.Status.ARCHIVED
+                )
+
+                # Create new message
+                msg = HighCommandMessage.objects.create(
+                    message=message,
+                    sender_name=sender,
+                    status=HighCommandMessage.Status.ACTIVE,
+                )
+                return JsonResponse({"status": "sent", "id": msg.id})
+
+            # Respond to message (anyone can respond)
+            elif action == "respond":
+                msg_id = body.get("id")
+                response = body.get("response", "").strip()
+                responder = body.get("responder", "").strip()
+
+                if not response or not responder:
+                    return JsonResponse({"error": "Response and your name required"}, status=400)
+
+                msg = get_object_or_404(HighCommandMessage, pk=msg_id)
+                msg.response = response
+                msg.responder_name = responder
+                msg.responded_at = timezone.now()
+                msg.status = HighCommandMessage.Status.ACKNOWLEDGED
+                msg.save()
+
+                return JsonResponse({"status": "responded"})
+
+            # Get message history
+            elif action == "history":
+                messages = HighCommandMessage.objects.all()[:20]
+                data = [
+                    {
+                        "id": m.id,
+                        "message": m.message,
+                        "sender": m.sender_name,
+                        "status": m.status,
+                        "response": m.response,
+                        "responder": m.responder_name,
+                        "created_at": m.created_at.isoformat(),
+                        "responded_at": m.responded_at.isoformat() if m.responded_at else None,
+                    }
+                    for m in messages
+                ]
+                return JsonResponse({"messages": data})
+
+            return JsonResponse({"error": "Invalid action"}, status=400)
+
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
