@@ -46,14 +46,25 @@ async function syncFrontdeskToGoogle(frontdeskEvent) {
 
   // Create privacy-filtered event for Google
   const googleTitle = createGoogleTitle(frontdeskEvent);
+
+  // Calculate start time
+  const startTime = frontdeskEvent.startTime || frontdeskEvent.dateTime;
+
+  // If no end time provided, default to start + 30 minutes
+  let endTime = frontdeskEvent.endTime;
+  if (!endTime && startTime) {
+    const startDate = new Date(startTime);
+    endTime = new Date(startDate.getTime() + 30 * 60 * 1000).toISOString();
+  }
+
   const googleEventData = {
     summary: googleTitle,
     start: {
-      dateTime: frontdeskEvent.startTime || frontdeskEvent.dateTime,
+      dateTime: startTime,
       timeZone: 'America/New_York',
     },
     end: {
-      dateTime: frontdeskEvent.endTime,
+      dateTime: endTime,
       timeZone: 'America/New_York',
     },
     description: frontdeskEvent.purpose || '',
@@ -107,14 +118,25 @@ async function syncFrontdeskToGoogle(frontdeskEvent) {
  */
 async function updateGoogleFromFrontdesk(mapping, frontdeskEvent) {
   const googleTitle = createGoogleTitle(frontdeskEvent);
+
+  // Calculate start time
+  const startTime = frontdeskEvent.startTime || frontdeskEvent.dateTime;
+
+  // If no end time provided, default to start + 30 minutes
+  let endTime = frontdeskEvent.endTime;
+  if (!endTime && startTime) {
+    const startDate = new Date(startTime);
+    endTime = new Date(startDate.getTime() + 30 * 60 * 1000).toISOString();
+  }
+
   const googleEventData = {
     summary: googleTitle,
     start: {
-      dateTime: frontdeskEvent.startTime || frontdeskEvent.dateTime,
+      dateTime: startTime,
       timeZone: 'America/New_York',
     },
     end: {
-      dateTime: frontdeskEvent.endTime,
+      dateTime: endTime,
       timeZone: 'America/New_York',
     },
     description: frontdeskEvent.purpose || '',
