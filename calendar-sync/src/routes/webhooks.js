@@ -172,51 +172,75 @@ router.post('/google/setup', async (req, res, next) => {
 
 /**
  * POST /api/webhook/external
- * Receive notifications from external Frontdesk systems (e.g., AI Front Desk)
+ * Receive notifications from external Frontdesk systems (e.g., MyAI Front Desk)
  *
- * Body: {
- *   event: 'appointment.created' | 'appointment.updated' | 'appointment.cancelled',
- *   data: { ... appointment data ... }
- * }
+ * Handles multiple formats:
+ * - Standard: { event: 'appointment.created', data: { ... } }
+ * - MyAIFrontDesk: { call_id, caller_number, appointment_time, ... }
+ * - Flat: { id, name, phone, start, ... }
  */
 router.post('/external', async (req, res, next) => {
   try {
-    const { event: eventType, data } = req.body;
-    console.log(`[Webhook] External: ${eventType}`);
+    // Log raw incoming data for debugging
+    console.log(`[Webhook] External raw data:`, JSON.stringify(req.body, null, 2));
 
-    // Map external event to our format
+    const body = req.body;
+    let eventType = 'appointment.created'; // Default to created
+    let eventData = {};
+
+    // Handle different formats
+    if (body.event && body.data) {
+      // Standard format: { event: '...', data: { ... } }
+      eventType = body.event;
+      eventData = body.data;
+    } else if (body.call_id || body.caller_number || body.appointment_time) {
+      // MyAIFrontDesk format
+      eventType = body.status === 'cancelled' ? 'appointment.cancelled' : 'appointment.created';
+      eventData = {
+        id: body.call_id || body.id || `ext-${Date.now()}`,
+        customerName: body.caller_name || body.name || body.customer_name || 'Customer',
+        customerPhone: body.caller_number || body.phone || body.customer_phone || '',
+        startTime: body.appointment_time || body.scheduled_time || body.start_time || body.datetime,
+        endTime: body.end_time || body.appointment_end,
+        purpose: body.reason || body.purpose || body.service || body.call_summary || 'Appointment',
+        notes: body.notes || body.transcript || body.call_notes || '',
+      };
+    } else {
+      // Flat format - try to extract what we can
+      eventData = {
+        id: body.id || body.appointmentId || body.appointment_id || `ext-${Date.now()}`,
+        customerName: body.customerName || body.customer_name || body.name || body.caller || 'Customer',
+        customerPhone: body.customerPhone || body.customer_phone || body.phone || body.caller_number || '',
+        startTime: body.startTime || body.start_time || body.datetime || body.appointment_time || body.start,
+        endTime: body.endTime || body.end_time || body.end,
+        purpose: body.purpose || body.service || body.reason || body.type || 'Appointment',
+        notes: body.notes || '',
+      };
+    }
+
+    console.log(`[Webhook] External parsed: type=${eventType}, name=${eventData.customerName}, phone=${eventData.customerPhone}`);
+
+    // Map external event to our format with source marker
     const mappedEvent = {
-      id: data.id || data.appointmentId,
-      customerName: data.customerName || data.name || data.customer,
-      customerPhone: data.customerPhone || data.phone,
-      startTime: data.startTime || data.dateTime || data.start,
-      endTime: data.endTime || data.end,
-      purpose: data.purpose || data.service || data.reason,
-      notes: data.notes,
+      ...eventData,
       source: 'external',
     };
 
     if (!googleCalendar.isAuthenticated()) {
+      console.warn('[Webhook] Google Calendar not connected');
       return res.json({ received: true, synced: false, reason: 'google_not_connected' });
     }
 
     let result;
 
-    switch (eventType) {
-      case 'appointment.created':
-      case 'appointment.updated':
-        result = await syncEngine.syncFrontdeskToGoogle(mappedEvent);
-        break;
-
-      case 'appointment.cancelled':
-      case 'appointment.deleted':
-        result = await syncEngine.syncDelete('frontdesk', mappedEvent.id);
-        break;
-
-      default:
-        return res.json({ received: true, synced: false, reason: 'unknown_event_type' });
+    if (eventType.includes('cancel') || eventType.includes('delet')) {
+      result = await syncEngine.syncDelete('frontdesk', mappedEvent.id);
+    } else {
+      // Created or updated
+      result = await syncEngine.syncFrontdeskToGoogle(mappedEvent);
     }
 
+    console.log(`[Webhook] External sync result:`, result);
     res.json({ received: true, synced: true, result });
   } catch (err) {
     console.error('[Webhook] External error:', err.message);
