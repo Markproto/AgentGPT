@@ -54,7 +54,9 @@ async function syncFrontdeskToGoogle(frontdeskEvent) {
   let endTime = frontdeskEvent.endTime;
   if (!endTime && startTime) {
     const startDate = new Date(startTime);
-    endTime = new Date(startDate.getTime() + 30 * 60 * 1000).toISOString();
+    const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
+    // Format to match input format (ISO without Z suffix for consistency)
+    endTime = endDate.toISOString().replace('Z', '').split('.')[0];
   }
 
   const googleEventData = {
@@ -126,7 +128,9 @@ async function updateGoogleFromFrontdesk(mapping, frontdeskEvent) {
   let endTime = frontdeskEvent.endTime;
   if (!endTime && startTime) {
     const startDate = new Date(startTime);
-    endTime = new Date(startDate.getTime() + 30 * 60 * 1000).toISOString();
+    const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
+    // Format to match input format (ISO without Z suffix for consistency)
+    endTime = endDate.toISOString().replace('Z', '').split('.')[0];
   }
 
   const googleEventData = {
