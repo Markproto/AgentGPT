@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const env = require('../config/env');
 const syncEngine = require('../services/syncEngine');
 const googleCalendar = require('../services/googleCalendar');
+const frontdeskClient = require('../services/frontdeskClient');
 
 const router = Router();
 
@@ -178,6 +179,9 @@ router.post('/google/setup', async (req, res, next) => {
  * - Standard: { event: 'appointment.created', data: { ... } }
  * - MyAIFrontDesk: { call_id, caller_number, appointment_time, ... }
  * - Flat: { id, name, phone, start, ... }
+ *
+ * Creates appointments directly in OpenTruth Front Desk calendar,
+ * and optionally syncs to Google Calendar if connected.
  */
 router.post('/external', async (req, res, next) => {
   try {
@@ -220,28 +224,84 @@ router.post('/external', async (req, res, next) => {
 
     console.log(`[Webhook] External parsed: type=${eventType}, name=${eventData.customerName}, phone=${eventData.customerPhone}`);
 
-    // Map external event to our format with source marker
-    const mappedEvent = {
-      ...eventData,
-      source: 'external',
+    const results = {
+      frontdesk: null,
+      google: null,
     };
 
-    if (!googleCalendar.isAuthenticated()) {
-      console.warn('[Webhook] Google Calendar not connected');
-      return res.json({ received: true, synced: false, reason: 'google_not_connected' });
-    }
-
-    let result;
-
+    // Handle cancellations/deletions
     if (eventType.includes('cancel') || eventType.includes('delet')) {
-      result = await syncEngine.syncDelete('frontdesk', mappedEvent.id);
+      // Delete from Front Desk and Google
+      try {
+        await frontdeskClient.deleteEvent(eventData.id);
+        results.frontdesk = { deleted: true };
+      } catch (err) {
+        console.error('[Webhook] Failed to delete from Front Desk:', err.message);
+        results.frontdesk = { error: err.message };
+      }
+
+      if (googleCalendar.isAuthenticated()) {
+        try {
+          results.google = await syncEngine.syncDelete('frontdesk', eventData.id);
+        } catch (err) {
+          console.error('[Webhook] Failed to delete from Google:', err.message);
+          results.google = { error: err.message };
+        }
+      }
     } else {
-      // Created or updated
-      result = await syncEngine.syncFrontdeskToGoogle(mappedEvent);
+      // Create/Update appointment
+      // Step 1: Create directly in OpenTruth Front Desk
+      const frontdeskEventData = {
+        customer: eventData.customerName,
+        phone: eventData.customerPhone,
+        dateTime: eventData.startTime,
+        endTime: eventData.endTime,
+        purpose: eventData.purpose,
+        notes: `${eventData.notes || ''}\nSource: MyAIFrontDesk (${eventData.id})`.trim(),
+        source: 'myaifrontdesk',
+        externalId: eventData.id,
+      };
+
+      try {
+        const frontdeskResult = await frontdeskClient.createEvent(frontdeskEventData);
+        console.log(`[Webhook] Created appointment in Front Desk: ${frontdeskResult.id}`);
+        results.frontdesk = { created: true, id: frontdeskResult.id };
+
+        // Step 2: Optionally sync to Google Calendar with privacy filtering
+        if (googleCalendar.isAuthenticated()) {
+          try {
+            const mappedEvent = {
+              id: frontdeskResult.id || eventData.id,
+              customerName: eventData.customerName,
+              customerPhone: eventData.customerPhone,
+              startTime: eventData.startTime,
+              endTime: eventData.endTime,
+              purpose: eventData.purpose,
+              source: 'external',
+            };
+            const googleResult = await syncEngine.syncFrontdeskToGoogle(mappedEvent);
+            console.log(`[Webhook] Synced to Google Calendar:`, googleResult);
+            results.google = googleResult;
+          } catch (err) {
+            console.error('[Webhook] Failed to sync to Google:', err.message);
+            results.google = { error: err.message };
+          }
+        } else {
+          console.log('[Webhook] Google Calendar not connected, skipping Google sync');
+          results.google = { skipped: true, reason: 'google_not_connected' };
+        }
+      } catch (err) {
+        console.error('[Webhook] Failed to create in Front Desk:', err.message);
+        results.frontdesk = { error: err.message };
+      }
     }
 
-    console.log(`[Webhook] External sync result:`, result);
-    res.json({ received: true, synced: true, result });
+    console.log(`[Webhook] External sync results:`, results);
+    res.json({
+      received: true,
+      synced: results.frontdesk?.created || results.frontdesk?.deleted || false,
+      results,
+    });
   } catch (err) {
     console.error('[Webhook] External error:', err.message);
     res.json({ received: true, synced: false, error: err.message });
