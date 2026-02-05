@@ -1,9 +1,11 @@
 const { Router } = require('express');
 const crypto = require('crypto');
 const env = require('../config/env');
+const db = require('../models/database');
 const syncEngine = require('../services/syncEngine');
 const googleCalendar = require('../services/googleCalendar');
 const frontdeskClient = require('../services/frontdeskClient');
+const { v4: uuidv4 } = require('uuid');
 
 const router = Router();
 
@@ -250,12 +252,24 @@ router.post('/external', async (req, res, next) => {
       }
     } else {
       // Create/Update appointment
-      // Step 1: Create directly in OpenTruth Front Desk
+      // Calculate endTime if not provided (default to startTime + 30 minutes)
+      let endTime = eventData.endTime;
+      if (!endTime && eventData.startTime) {
+        const startDate = new Date(eventData.startTime);
+        const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
+        endTime = endDate.toISOString().replace('Z', '').split('.')[0];
+      }
+
+      // Check if we already have a mapping for this external ID
+      const existingMapping = db
+        .prepare('SELECT * FROM event_mappings WHERE external_event_id = ?')
+        .get(eventData.id);
+
       const frontdeskEventData = {
         customer: eventData.customerName,
         phone: eventData.customerPhone,
         dateTime: eventData.startTime,
-        endTime: eventData.endTime,
+        endTime: endTime,
         purpose: eventData.purpose,
         notes: `${eventData.notes || ''}\nSource: MyAIFrontDesk (${eventData.id})`.trim(),
         source: 'myaifrontdesk',
@@ -263,9 +277,48 @@ router.post('/external', async (req, res, next) => {
       };
 
       try {
-        const frontdeskResult = await frontdeskClient.createEvent(frontdeskEventData);
-        console.log(`[Webhook] Created appointment in Front Desk: ${frontdeskResult.id}`);
-        results.frontdesk = { created: true, id: frontdeskResult.id };
+        let frontdeskResult;
+        let isUpdate = false;
+
+        if (existingMapping && existingMapping.frontdesk_event_id) {
+          // Update existing appointment
+          console.log(`[Webhook] Updating existing appointment: ${existingMapping.frontdesk_event_id}`);
+          await frontdeskClient.updateEvent(existingMapping.frontdesk_event_id, frontdeskEventData);
+          frontdeskResult = { id: existingMapping.frontdesk_event_id };
+          results.frontdesk = { updated: true, id: existingMapping.frontdesk_event_id };
+          isUpdate = true;
+
+          // Update mapping timestamps
+          db.prepare(`
+            UPDATE event_mappings
+            SET event_start = ?, event_end = ?, updated_at = datetime('now'),
+                sync_status = 'synced', last_synced_at = datetime('now')
+            WHERE id = ?
+          `).run(eventData.startTime, endTime, existingMapping.id);
+        } else {
+          // Create new appointment
+          frontdeskResult = await frontdeskClient.createEvent(frontdeskEventData);
+          console.log(`[Webhook] Created appointment in Front Desk: ${frontdeskResult.id}`);
+          results.frontdesk = { created: true, id: frontdeskResult.id };
+
+          // Store mapping for future updates
+          const mappingId = uuidv4();
+          db.prepare(`
+            INSERT INTO event_mappings (
+              id, frontdesk_event_id, external_event_id,
+              original_customer_name, original_phone_last_two,
+              event_start, event_end, sync_status, last_synced_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'synced', datetime('now'))
+          `).run(
+            mappingId,
+            frontdeskResult.id,
+            eventData.id,
+            eventData.customerName,
+            eventData.customerPhone?.slice(-2) || '',
+            eventData.startTime,
+            endTime
+          );
+        }
 
         // Step 2: Optionally sync to Google Calendar with privacy filtering
         if (googleCalendar.isAuthenticated()) {
@@ -275,12 +328,12 @@ router.post('/external', async (req, res, next) => {
               customerName: eventData.customerName,
               customerPhone: eventData.customerPhone,
               startTime: eventData.startTime,
-              endTime: eventData.endTime,
+              endTime: endTime,
               purpose: eventData.purpose,
               source: 'external',
             };
             const googleResult = await syncEngine.syncFrontdeskToGoogle(mappedEvent);
-            console.log(`[Webhook] Synced to Google Calendar:`, googleResult);
+            console.log(`[Webhook] ${isUpdate ? 'Updated' : 'Synced'} to Google Calendar:`, googleResult);
             results.google = googleResult;
           } catch (err) {
             console.error('[Webhook] Failed to sync to Google:', err.message);
@@ -291,7 +344,7 @@ router.post('/external', async (req, res, next) => {
           results.google = { skipped: true, reason: 'google_not_connected' };
         }
       } catch (err) {
-        console.error('[Webhook] Failed to create in Front Desk:', err.message);
+        console.error('[Webhook] Failed to create/update in Front Desk:', err.message);
         results.frontdesk = { error: err.message };
       }
     }
@@ -299,7 +352,7 @@ router.post('/external', async (req, res, next) => {
     console.log(`[Webhook] External sync results:`, results);
     res.json({
       received: true,
-      synced: results.frontdesk?.created || results.frontdesk?.deleted || false,
+      synced: results.frontdesk?.created || results.frontdesk?.updated || results.frontdesk?.deleted || false,
       results,
     });
   } catch (err) {
