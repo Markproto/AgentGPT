@@ -10,6 +10,69 @@ const { v4: uuidv4 } = require('uuid');
 const router = Router();
 
 /**
+ * Detect buy/sell action from text (purpose, reason, transcript)
+ * @param {string} text - Text to analyze
+ * @returns {string|null} 'buy', 'sell', or null
+ */
+function detectActionFromText(text) {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+
+  // Check for sell indicators first (customer selling to us = we buy)
+  if (lower.includes('sell') || lower.includes('selling') || lower.includes('liquidat')) {
+    return 'sell';
+  }
+  // Check for buy indicators (customer buying from us = we sell)
+  if (lower.includes('buy') || lower.includes('buying') || lower.includes('purchas')) {
+    return 'buy';
+  }
+  return null;
+}
+
+/**
+ * Detect metal type from text
+ * @param {string} text - Text to analyze
+ * @returns {string|null} 'gold', 'silver', 'platinum', 'palladium', or null
+ */
+function detectMetalFromText(text) {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+
+  if (lower.includes('gold') || lower.includes('au ')) return 'gold';
+  if (lower.includes('silver') || lower.includes('ag ')) return 'silver';
+  if (lower.includes('platinum') || lower.includes('pt ')) return 'platinum';
+  if (lower.includes('palladium') || lower.includes('pd ')) return 'palladium';
+  return null;
+}
+
+/**
+ * Detect quantity (oz) from text
+ * @param {string} text - Text to analyze
+ * @returns {number|null} Quantity in oz or null
+ */
+function detectQuantityFromText(text) {
+  if (!text) return null;
+
+  // Look for patterns like "2 oz", "10 ounce", "5oz", "1/2 oz"
+  const patterns = [
+    /(\d+(?:\.\d+)?)\s*(?:oz|ounce)/i,
+    /(\d+)\s*\/\s*(\d+)\s*(?:oz|ounce)/i,  // fractions like 1/2 oz
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      if (match[2]) {
+        // Fraction
+        return parseFloat(match[1]) / parseFloat(match[2]);
+      }
+      return parseFloat(match[1]);
+    }
+  }
+  return null;
+}
+
+/**
  * Verify webhook signature (for Front Desk webhooks)
  */
 function verifyWebhookSignature(req) {
@@ -202,29 +265,39 @@ router.post('/external', async (req, res, next) => {
     } else if (body.call_id || body.caller_number || body.appointment_time) {
       // MyAIFrontDesk format
       eventType = body.status === 'cancelled' ? 'appointment.cancelled' : 'appointment.created';
+      const purpose = body.reason || body.purpose || body.service || body.call_summary || 'Appointment';
       eventData = {
         id: body.call_id || body.id || `ext-${Date.now()}`,
         customerName: body.caller_name || body.name || body.customer_name || 'Customer',
         customerPhone: body.caller_number || body.phone || body.customer_phone || '',
         startTime: body.appointment_time || body.scheduled_time || body.start_time || body.datetime,
         endTime: body.end_time || body.appointment_end,
-        purpose: body.reason || body.purpose || body.service || body.call_summary || 'Appointment',
+        purpose: purpose,
         notes: body.notes || body.transcript || body.call_notes || '',
+        // Buy/sell action - check explicit field or detect from purpose
+        action: body.action || detectActionFromText(purpose),
+        // Metal/product type
+        metal: body.metal || body.product || detectMetalFromText(purpose),
+        quantity: body.quantity || body.amount || body.oz || detectQuantityFromText(purpose),
       };
     } else {
       // Flat format - try to extract what we can
+      const purpose = body.purpose || body.service || body.reason || body.type || 'Appointment';
       eventData = {
         id: body.id || body.appointmentId || body.appointment_id || `ext-${Date.now()}`,
         customerName: body.customerName || body.customer_name || body.name || body.caller || 'Customer',
         customerPhone: body.customerPhone || body.customer_phone || body.phone || body.caller_number || '',
         startTime: body.startTime || body.start_time || body.datetime || body.appointment_time || body.start,
         endTime: body.endTime || body.end_time || body.end,
-        purpose: body.purpose || body.service || body.reason || body.type || 'Appointment',
+        purpose: purpose,
         notes: body.notes || '',
+        action: body.action || detectActionFromText(purpose),
+        metal: body.metal || body.product || detectMetalFromText(purpose),
+        quantity: body.quantity || body.amount || body.oz || detectQuantityFromText(purpose),
       };
     }
 
-    console.log(`[Webhook] External parsed: type=${eventType}, name=${eventData.customerName}, phone=${eventData.customerPhone}`);
+    console.log(`[Webhook] External parsed: type=${eventType}, name=${eventData.customerName}, phone=${eventData.customerPhone}, action=${eventData.action || 'unknown'}, metal=${eventData.metal || 'unknown'}, qty=${eventData.quantity || 'unknown'}`);
 
     const results = {
       frontdesk: null,
@@ -274,6 +347,10 @@ router.post('/external', async (req, res, next) => {
         notes: `${eventData.notes || ''}\nSource: MyAIFrontDesk (${eventData.id})`.trim(),
         source: 'myaifrontdesk',
         externalId: eventData.id,
+        // Matching fields - buy/sell bullion
+        action: eventData.action,      // 'buy' or 'sell'
+        metal: eventData.metal,        // 'gold', 'silver', 'platinum', 'palladium'
+        quantity: eventData.quantity,  // oz amount
       };
 
       try {
