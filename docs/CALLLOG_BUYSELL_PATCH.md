@@ -351,6 +351,219 @@ print("Done!")
 
 ---
 
+## Step 7: Format Transcripts as Readable Dialogue
+
+The transcript modal currently shows raw text with `assistant@`, `user@`, `system@` prefixes. Update the template to display these as a proper chat dialogue.
+
+Replace the modal body section in `/app/templates/call_log.html` with this enhanced version:
+
+```html
+<!-- Modal -->
+<div class="modal fade" id="transcriptModal{{ call.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Call Transcript - {{ call.created_at|date:"M d, Y H:i" }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Customer:</strong> {{ call.customer }}</p>
+                <p><strong>Phone:</strong> {{ call.phone_number }}</p>
+                {% if call.action_detected or call.metal_detected %}
+                <p>
+                    {% if call.action_detected %}<span class="badge {% if call.action_detected == 'BUYING' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ call.action_detected }}</span>{% endif %}
+                    {% if call.metal_detected %}<span class="badge bg-secondary">{{ call.metal_detected }}</span>{% endif %}
+                    {% if call.form_detected %}<span class="badge bg-info">{{ call.form_detected }}</span>{% endif %}
+                    {% if call.quantity_detected %}{{ call.quantity_detected }} oz{% endif %}
+                </p>
+                {% endif %}
+                <hr>
+                <div class="transcript-dialogue" data-transcript="{{ call.transcript|escapejs }}"></div>
+            </div>
+        </div>
+    </div>
+</div>
+```
+
+Add this JavaScript at the bottom of the template (before `{% endblock %}`):
+
+```html
+{% block extra_js %}
+<style>
+.transcript-dialogue {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+.dialogue-message {
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    max-width: 85%;
+}
+.dialogue-assistant {
+    background: #e3f2fd;
+    border-left: 3px solid #2196f3;
+    margin-right: auto;
+}
+.dialogue-user {
+    background: #e8f5e9;
+    border-left: 3px solid #4caf50;
+    margin-right: auto;
+}
+.dialogue-system {
+    background: #fff3e0;
+    border-left: 3px solid #ff9800;
+    font-style: italic;
+    font-size: 0.9em;
+}
+.dialogue-label {
+    font-weight: bold;
+    font-size: 0.8em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+.dialogue-assistant .dialogue-label { color: #1565c0; }
+.dialogue-user .dialogue-label { color: #2e7d32; }
+.dialogue-system .dialogue-label { color: #e65100; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Format all transcript dialogues
+    document.querySelectorAll('.transcript-dialogue').forEach(function(container) {
+        const rawText = container.dataset.transcript;
+        if (!rawText) {
+            container.innerHTML = '<em class="text-muted">No transcript available</em>';
+            return;
+        }
+
+        // Parse the transcript - split by speaker prefixes
+        const lines = rawText.split(/(?=assistant@|user@|system@)/gi);
+        let html = '';
+
+        lines.forEach(function(line) {
+            line = line.trim();
+            if (!line) return;
+
+            let speaker = '';
+            let message = line;
+            let cssClass = '';
+
+            if (line.toLowerCase().startsWith('assistant@')) {
+                speaker = 'AI Assistant';
+                message = line.substring(10).trim();
+                cssClass = 'dialogue-assistant';
+            } else if (line.toLowerCase().startsWith('user@')) {
+                speaker = 'Customer';
+                message = line.substring(5).trim();
+                cssClass = 'dialogue-user';
+            } else if (line.toLowerCase().startsWith('system@')) {
+                speaker = 'System';
+                message = line.substring(7).trim();
+                cssClass = 'dialogue-system';
+            } else {
+                // Unknown format, show as-is
+                html += '<div class="dialogue-message dialogue-system"><div class="dialogue-label">Note</div>' + escapeHtml(line) + '</div>';
+                return;
+            }
+
+            if (message) {
+                html += '<div class="dialogue-message ' + cssClass + '"><div class="dialogue-label">' + speaker + '</div>' + escapeHtml(message) + '</div>';
+            }
+        });
+
+        container.innerHTML = html || '<em class="text-muted">No dialogue content</em>';
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+});
+</script>
+{% endblock %}
+```
+
+**To apply this on your server:**
+
+```bash
+# Create a Python script to update the template
+docker exec -it frontdesk-web python << 'PYEOF'
+import re
+
+# Read current template
+with open('/app/templates/call_log.html', 'r') as f:
+    content = f.read()
+
+# Check if dialogue formatting already exists
+if 'transcript-dialogue' in content:
+    print("Dialogue formatting already applied!")
+else:
+    # Replace the old pre tag with the new dialogue div
+    old_modal_body = r'<pre style="white-space: pre-wrap;">{{ call.transcript }}</pre>'
+    new_modal_body = '<div class="transcript-dialogue" data-transcript="{{ call.transcript|escapejs }}"></div>'
+
+    if old_modal_body in content:
+        content = content.replace(old_modal_body, new_modal_body)
+        print("Replaced pre tag with dialogue div")
+    else:
+        print("Could not find pre tag to replace - manual update may be needed")
+
+    # Add the CSS and JS before endblock if not already there
+    if 'dialogue-message' not in content:
+        css_js = '''
+<style>
+.transcript-dialogue { max-height: 400px; overflow-y: auto; padding: 10px; background: #f8f9fa; border-radius: 8px; }
+.dialogue-message { margin-bottom: 12px; padding: 8px 12px; border-radius: 8px; max-width: 85%; }
+.dialogue-assistant { background: #e3f2fd; border-left: 3px solid #2196f3; }
+.dialogue-user { background: #e8f5e9; border-left: 3px solid #4caf50; }
+.dialogue-system { background: #fff3e0; border-left: 3px solid #ff9800; font-style: italic; font-size: 0.9em; }
+.dialogue-label { font-weight: bold; font-size: 0.8em; text-transform: uppercase; margin-bottom: 4px; }
+.dialogue-assistant .dialogue-label { color: #1565c0; }
+.dialogue-user .dialogue-label { color: #2e7d32; }
+.dialogue-system .dialogue-label { color: #e65100; }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.transcript-dialogue').forEach(function(container) {
+        const rawText = container.dataset.transcript;
+        if (!rawText) { container.innerHTML = '<em class="text-muted">No transcript</em>'; return; }
+        const lines = rawText.split(/(?=assistant@|user@|system@)/gi);
+        let html = '';
+        lines.forEach(function(line) {
+            line = line.trim();
+            if (!line) return;
+            let speaker = '', message = line, cssClass = '';
+            if (line.toLowerCase().startsWith('assistant@')) { speaker = 'AI Assistant'; message = line.substring(10).trim(); cssClass = 'dialogue-assistant'; }
+            else if (line.toLowerCase().startsWith('user@')) { speaker = 'Customer'; message = line.substring(5).trim(); cssClass = 'dialogue-user'; }
+            else if (line.toLowerCase().startsWith('system@')) { speaker = 'System'; message = line.substring(7).trim(); cssClass = 'dialogue-system'; }
+            else { html += '<div class="dialogue-message dialogue-system"><div class="dialogue-label">Note</div>' + line.replace(/</g,'&lt;') + '</div>'; return; }
+            if (message) { html += '<div class="dialogue-message ' + cssClass + '"><div class="dialogue-label">' + speaker + '</div>' + message.replace(/</g,'&lt;') + '</div>'; }
+        });
+        container.innerHTML = html || '<em class="text-muted">No dialogue</em>';
+    });
+});
+</script>
+'''
+        content = content.replace('{% endblock %}', css_js + '\n{% endblock %}')
+        print("Added CSS and JavaScript for dialogue formatting")
+
+    with open('/app/templates/call_log.html', 'w') as f:
+        f.write(content)
+    print("Template updated with dialogue formatting!")
+
+PYEOF
+
+# Restart container to apply changes
+docker restart frontdesk-web
+```
+
+---
+
 ## Testing
 
 After applying changes:
