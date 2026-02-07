@@ -119,6 +119,36 @@ async function registerWebhook(webhookUrl) {
   }
 }
 
+/**
+ * Create a call log entry in Front Desk
+ * @param {Object} callData - Call log data
+ * @returns {Object} Created call log
+ */
+async function createCallLog(callData) {
+  try {
+    const response = await client.post('/api/call-webhook/', {
+      caller_name: callData.customerName,
+      caller_number: callData.customerPhone,
+      direction: callData.direction || 'inbound',
+      duration: callData.duration || 0,
+      transcript: callData.transcript || '',
+      category: callData.category || '',
+      call_id: callData.callId || callData.id,
+      // Detection fields
+      action_detected: callData.action ? callData.action.toUpperCase() : '',
+      metal_detected: callData.metal ? callData.metal.toUpperCase() : '',
+      quantity_detected: callData.quantity || null,
+      form_detected: callData.form ? callData.form.toUpperCase() : '',
+    });
+    console.log(`[FrontDesk] Created call log: ${response.data.id}`);
+    return response.data;
+  } catch (error) {
+    console.error('[FrontDesk] Failed to create call log:', error.message);
+    // Don't throw - call log creation is optional
+    return { error: error.message };
+  }
+}
+
 module.exports = {
   getEvents,
   createEvent,
@@ -126,4 +156,5 @@ module.exports = {
   deleteEvent,
   getEvent,
   registerWebhook,
+  createCallLog,
 };

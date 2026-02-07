@@ -73,6 +73,34 @@ function detectQuantityFromText(text) {
 }
 
 /**
+ * Detect form type (bullion, scrap, coins) from text
+ * @param {string} text - Text to analyze
+ * @returns {string|null} 'bullion', 'scrap', 'coins', or null
+ */
+function detectFormFromText(text) {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+
+  // Check for bullion indicators
+  if (lower.includes('bullion') || lower.includes('bar') || lower.includes('round') ||
+      lower.includes('eagle') || lower.includes('maple') || lower.includes('krugerrand') ||
+      lower.includes('buffalo') || lower.includes('philharmonic')) {
+    return 'bullion';
+  }
+  // Check for coins
+  if (lower.includes('coin') || lower.includes('numismatic')) {
+    return 'coins';
+  }
+  // Check for scrap/jewelry
+  if (lower.includes('scrap') || lower.includes('jewelry') || lower.includes('jewellery') ||
+      lower.includes('ring') || lower.includes('necklace') || lower.includes('bracelet') ||
+      lower.includes('chain') || lower.includes('vintage') || lower.includes('estate')) {
+    return 'scrap';
+  }
+  return null;
+}
+
+/**
  * Verify webhook signature (for Front Desk webhooks)
  */
 function verifyWebhookSignature(req) {
@@ -279,6 +307,12 @@ router.post('/external', async (req, res, next) => {
         // Metal/product type
         metal: body.metal || body.product || detectMetalFromText(purpose),
         quantity: body.quantity || body.amount || body.oz || detectQuantityFromText(purpose),
+        // Form type (bullion, scrap, coins)
+        form: body.form || detectFormFromText(purpose) || detectFormFromText(body.transcript),
+        // Call data for CallLog creation
+        transcript: body.transcript || body.call_summary || '',
+        duration: body.duration || body.call_duration || 0,
+        callId: body.call_id || body.id,
       };
     } else {
       // Flat format - try to extract what we can
@@ -294,10 +328,14 @@ router.post('/external', async (req, res, next) => {
         action: body.action || detectActionFromText(purpose),
         metal: body.metal || body.product || detectMetalFromText(purpose),
         quantity: body.quantity || body.amount || body.oz || detectQuantityFromText(purpose),
+        form: body.form || detectFormFromText(purpose) || detectFormFromText(body.transcript),
+        transcript: body.transcript || body.call_summary || '',
+        duration: body.duration || body.call_duration || 0,
+        callId: body.call_id || body.id,
       };
     }
 
-    console.log(`[Webhook] External parsed: type=${eventType}, name=${eventData.customerName}, phone=${eventData.customerPhone}, action=${eventData.action || 'unknown'}, metal=${eventData.metal || 'unknown'}, qty=${eventData.quantity || 'unknown'}`);
+    console.log(`[Webhook] External parsed: type=${eventType}, name=${eventData.customerName}, phone=${eventData.customerPhone}, action=${eventData.action || 'unknown'}, metal=${eventData.metal || 'unknown'}, form=${eventData.form || 'unknown'}, qty=${eventData.quantity || 'unknown'}`);
 
     const results = {
       frontdesk: null,
@@ -351,6 +389,7 @@ router.post('/external', async (req, res, next) => {
         action: eventData.action,      // 'buy' or 'sell'
         metal: eventData.metal,        // 'gold', 'silver', 'platinum', 'palladium'
         quantity: eventData.quantity,  // oz amount
+        form: eventData.form,          // 'bullion', 'scrap', 'coins'
       };
 
       try {
@@ -395,6 +434,29 @@ router.post('/external', async (req, res, next) => {
             eventData.startTime,
             endTime
           );
+        }
+
+        // Step 1b: Create CallLog entry if we have transcript data
+        if (eventData.transcript || eventData.callId) {
+          try {
+            const callLogResult = await frontdeskClient.createCallLog({
+              customerName: eventData.customerName,
+              customerPhone: eventData.customerPhone,
+              direction: 'inbound',
+              duration: eventData.duration,
+              transcript: eventData.transcript,
+              callId: eventData.callId,
+              action: eventData.action,
+              metal: eventData.metal,
+              quantity: eventData.quantity,
+              form: eventData.form,
+            });
+            results.callLog = callLogResult;
+            console.log(`[Webhook] Created call log:`, callLogResult);
+          } catch (callLogErr) {
+            console.error('[Webhook] Failed to create call log:', callLogErr.message);
+            results.callLog = { error: callLogErr.message };
+          }
         }
 
         // Step 2: Optionally sync to Google Calendar with privacy filtering
