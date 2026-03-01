@@ -19,6 +19,8 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "0.0.0.0",
+    "192.168.1.99",
+    "*",  # Allow all hosts for local development
 ]
 
 ALLOWED_HOSTS += os.environ.get("FRONTDESK_ALLOWED_HOSTS", "").split(",")
