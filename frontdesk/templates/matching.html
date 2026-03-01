@@ -56,8 +56,8 @@
             <tbody>
                 {% for m in proposed_matches %}
                 <tr id="match-{{ m.id }}">
-                    <td><a href="/frontdesk/customers/{{ m.buyer.id }}/">{{ m.buyer.name }}</a></td>
-                    <td><a href="/frontdesk/customers/{{ m.seller.id }}/">{{ m.seller.name }}</a></td>
+                    <td><a href="/customers/{{ m.buyer.id }}/">{{ m.buyer.name }}</a></td>
+                    <td><a href="/customers/{{ m.seller.id }}/">{{ m.seller.name }}</a></td>
                     <td>{{ m.amount }} oz</td>
                     <td>{{ m.bullion_type }}</td>
                     <td>{% if m.profit_margin %}${{ m.profit_margin }}{% else %}-{% endif %}</td>
@@ -202,7 +202,7 @@
 <script>
 // Live Prices
 function fetchPrices() {
-    fetch('/frontdesk/api/prices/')
+    fetch('/api/prices/')
         .then(r => r.json())
         .then(data => {
             if (!data.success || !data.prices) {
@@ -246,7 +246,7 @@ function generateMatches() {
     const btn = document.getElementById('generateBtn');
     btn.disabled = true;
     btn.innerHTML = '<i class="bi bi-hourglass"></i> Generating...';
-    fetch('/frontdesk/matching/generate/', {
+    fetch('/matching/generate/', {
         method: 'POST', headers: { 'X-CSRFToken': csrftoken }, credentials: 'same-origin'
     }).then(r => r.json()).then(d => {
         document.getElementById('matchResult').innerHTML =
@@ -260,7 +260,7 @@ function generateMatches() {
 }
 
 function matchAction(id, action) {
-    fetch('/frontdesk/matching/' + id + '/' + action + '/', {
+    fetch('/matching/' + id + '/' + action + '/', {
         method: 'POST', headers: { 'X-CSRFToken': csrftoken }, credentials: 'same-origin'
     }).then(r => r.json()).then(() => location.reload());
 }
@@ -310,7 +310,7 @@ function saveManualMatch() {
         profit_margin: profitMargin ? parseFloat(profitMargin) : null
     };
 
-    fetch('/frontdesk/matching/manual/', {
+    fetch('/matching/manual/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',

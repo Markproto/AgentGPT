@@ -178,62 +178,62 @@
         </div>
         <ul class="nav flex-column mt-3">
             <li class="nav-item">
-                <a class="nav-link {% if request.path == '/frontdesk/' %}active{% endif %}" href="/frontdesk/">
+                <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
                     <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'customers' in request.path %}active{% endif %}" href="/frontdesk/customers/">
+                <a class="nav-link {% if 'customers' in request.path %}active{% endif %}" href="/customers/">
                     <i class="bi bi-people"></i> Customers
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'matching' in request.path %}active{% endif %}" href="/frontdesk/matching/">
+                <a class="nav-link {% if 'matching' in request.path %}active{% endif %}" href="/matching/">
                     <i class="bi bi-arrow-left-right"></i> Matching
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'appointments' in request.path %}active{% endif %}" href="/frontdesk/appointments/">
+                <a class="nav-link {% if 'appointments' in request.path %}active{% endif %}" href="/appointments/">
                     <i class="bi bi-calendar-check"></i> Appointments
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'calendar' in request.path %}active{% endif %}" href="/frontdesk/calendar/">
+                <a class="nav-link {% if 'calendar' in request.path %}active{% endif %}" href="/calendar/">
                     <i class="bi bi-calendar3"></i> Calendar
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'texting' in request.path %}active{% endif %}" href="/frontdesk/texting/">
+                <a class="nav-link {% if 'texting' in request.path %}active{% endif %}" href="/texting/">
                     <i class="bi bi-chat-dots"></i> Texting
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'calls' in request.path %}active{% endif %}" href="/frontdesk/calls/">
+                <a class="nav-link {% if 'calls' in request.path %}active{% endif %}" href="/calls/">
                     <i class="bi bi-telephone"></i> Call Log
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'inventory' in request.path %}active{% endif %}" href="/frontdesk/inventory/">
+                <a class="nav-link {% if 'inventory' in request.path %}active{% endif %}" href="/inventory/">
                     <i class="bi bi-box-seam"></i> Inventory
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'spread' in request.path %}active{% endif %}" href="/frontdesk/spread/">
+                <a class="nav-link {% if 'spread' in request.path %}active{% endif %}" href="/spread/">
                     <i class="bi bi-graph-up-arrow"></i> Spread
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'templates' in request.path %}active{% endif %}" href="/frontdesk/texting/templates/">
+                <a class="nav-link {% if 'templates' in request.path %}active{% endif %}" href="/texting/templates/">
                     <i class="bi bi-file-text"></i> Templates
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'import' in request.path or 'export' in request.path %}active{% endif %}" href="/frontdesk/import/">
+                <a class="nav-link {% if 'import' in request.path or 'export' in request.path %}active{% endif %}" href="/import/">
                     <i class="bi bi-cloud-upload"></i> Import/Export
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'guide' in request.path %}active{% endif %}" href="/frontdesk/guide/">
+                <a class="nav-link {% if 'guide' in request.path %}active{% endif %}" href="/guide/">
                     <i class="bi bi-book"></i> Integration Guide
                 </a>
             </li>
@@ -243,7 +243,7 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link text-danger" href="/frontdesk/logout/">
+                <a class="nav-link text-danger" href="/logout/">
                     <i class="bi bi-door-open"></i> Logout
                 </a>
             </li>
@@ -306,7 +306,7 @@
         });
 
         function checkHighCommand() {
-            fetch('/frontdesk/api/highcommand/')
+            fetch('/api/highcommand/')
                 .then(r => r.json())
                 .then(data => {
                     const bar = document.getElementById('hcAlertBar');
@@ -349,7 +349,7 @@
                 return;
             }
 
-            fetch('/frontdesk/api/highcommand/', {
+            fetch('/api/highcommand/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'send', sender, message, password })
@@ -375,7 +375,7 @@
                 return;
             }
 
-            fetch('/frontdesk/api/highcommand/', {
+            fetch('/api/highcommand/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'respond', id: currentHcMessageId, responder, response })

@@ -35,14 +35,14 @@ logger = logging.getLogger(__name__)
 def login_view(request):
     """Custom login view."""
     if request.user.is_authenticated:
-        return redirect("/frontdesk/")
+        return redirect("/")
 
     if request.method == "POST":
         form = LoginForm(request, data=request.POST)
         if form.is_valid():
             user = form.get_user()
             login(request, user)
-            next_url = request.GET.get("next", "/frontdesk/")
+            next_url = request.GET.get("next", "/")
             return redirect(next_url)
     else:
         form = LoginForm()
@@ -53,7 +53,7 @@ def login_view(request):
 def logout_view(request):
     """Logout and redirect to login."""
     logout(request)
-    return redirect("/frontdesk/login/")
+    return redirect("/login/")
 
 
 # ============================================================================
