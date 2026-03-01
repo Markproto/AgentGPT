@@ -44,11 +44,11 @@
     <div class="col-12">
         <div class="card">
             <div class="card-body d-flex gap-2 flex-wrap">
-                <a href="/frontdesk/customers/" class="btn btn-primary"><i class="bi bi-person-plus"></i> Manage Customers</a>
-                <a href="/frontdesk/matching/" class="btn btn-warning"><i class="bi bi-arrow-left-right"></i> View Matches</a>
-                <a href="/frontdesk/appointments/" class="btn btn-success"><i class="bi bi-calendar-plus"></i> New Appointment</a>
-                <a href="/frontdesk/texting/" class="btn btn-info text-white"><i class="bi bi-chat-dots"></i> Send Text</a>
-                <a href="/frontdesk/calendar/" class="btn btn-secondary"><i class="bi bi-calendar3"></i> Calendar</a>
+                <a href="{% url 'customer_list' %}" class="btn btn-primary"><i class="bi bi-person-plus"></i> Manage Customers</a>
+                <a href="{% url 'matching' %}" class="btn btn-warning"><i class="bi bi-arrow-left-right"></i> View Matches</a>
+                <a href="{% url 'appointment_list' %}" class="btn btn-success"><i class="bi bi-calendar-plus"></i> New Appointment</a>
+                <a href="{% url 'texting' %}" class="btn btn-info text-white"><i class="bi bi-chat-dots"></i> Send Text</a>
+                <a href="{% url 'calendar' %}" class="btn btn-secondary"><i class="bi bi-calendar3"></i> Calendar</a>
             </div>
         </div>
     </div>
@@ -75,7 +75,7 @@
                             {% for interaction in recent_interactions %}
                             <tr>
                                 <td class="text-nowrap">{{ interaction.created_at|date:"M d, H:i" }}</td>
-                                <td><a href="/frontdesk/customers/{{ interaction.customer.id }}/">{{ interaction.customer.name }}</a></td>
+                                <td><a href="{% url 'customer_detail' interaction.customer.id %}">{{ interaction.customer.name }}</a></td>
                                 <td><span class="badge bg-secondary">{{ interaction.get_type_display }}</span></td>
                                 <td>{{ interaction.summary|truncatewords:10 }}</td>
                             </tr>

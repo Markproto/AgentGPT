@@ -139,7 +139,7 @@ function syncCalls() {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Syncing...';
 
-    fetch('/frontdesk/calls/sync/', {
+    fetch(BASE_URL + '/calls/sync/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin'

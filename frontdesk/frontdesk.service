@@ -1,0 +1,19 @@
+[Unit]
+Description=J. Austin Front Desk CRM
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=mark
+Group=mark
+WorkingDirectory=/home/mark/AgentGPT/frontdesk
+Environment="PATH=/home/mark/AgentGPT/frontdesk/venv/bin"
+Environment="FRONTDESK_DB_USER=frontdesk"
+Environment="FRONTDESK_DB_PASSWORD=frontdesk"
+Environment="FRONTDESK_DEBUG=True"
+ExecStart=/home/mark/AgentGPT/frontdesk/venv/bin/gunicorn frontdesk.wsgi:application --bind 0.0.0.0:8001 --workers 2
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

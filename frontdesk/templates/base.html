@@ -178,62 +178,62 @@
         </div>
         <ul class="nav flex-column mt-3">
             <li class="nav-item">
-                <a class="nav-link {% if request.path == '/frontdesk/' %}active{% endif %}" href="/frontdesk/">
+                <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">
                     <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'customers' in request.path %}active{% endif %}" href="/frontdesk/customers/">
+                <a class="nav-link {% if 'customer' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'customer_list' %}">
                     <i class="bi bi-people"></i> Customers
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'matching' in request.path %}active{% endif %}" href="/frontdesk/matching/">
+                <a class="nav-link {% if 'matching' in request.resolver_match.url_name or 'match' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'matching' %}">
                     <i class="bi bi-arrow-left-right"></i> Matching
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'appointments' in request.path %}active{% endif %}" href="/frontdesk/appointments/">
+                <a class="nav-link {% if 'appointment' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'appointment_list' %}">
                     <i class="bi bi-calendar-check"></i> Appointments
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'calendar' in request.path %}active{% endif %}" href="/frontdesk/calendar/">
+                <a class="nav-link {% if request.resolver_match.url_name == 'calendar' %}active{% endif %}" href="{% url 'calendar' %}">
                     <i class="bi bi-calendar3"></i> Calendar
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'texting' in request.path %}active{% endif %}" href="/frontdesk/texting/">
+                <a class="nav-link {% if 'texting' in request.resolver_match.url_name or 'send_text' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'texting' %}">
                     <i class="bi bi-chat-dots"></i> Texting
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'calls' in request.path %}active{% endif %}" href="/frontdesk/calls/">
+                <a class="nav-link {% if 'call' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'call_log' %}">
                     <i class="bi bi-telephone"></i> Call Log
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'inventory' in request.path %}active{% endif %}" href="/frontdesk/inventory/">
+                <a class="nav-link {% if 'inventory' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'inventory' %}">
                     <i class="bi bi-box-seam"></i> Inventory
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'spread' in request.path %}active{% endif %}" href="/frontdesk/spread/">
+                <a class="nav-link {% if 'spread' in request.resolver_match.url_name or 'product' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'spread' %}">
                     <i class="bi bi-graph-up-arrow"></i> Spread
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'templates' in request.path %}active{% endif %}" href="/frontdesk/texting/templates/">
+                <a class="nav-link {% if 'template' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'template_manage' %}">
                     <i class="bi bi-file-text"></i> Templates
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'import' in request.path or 'export' in request.path %}active{% endif %}" href="/frontdesk/import/">
+                <a class="nav-link {% if 'import' in request.resolver_match.url_name or 'export' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'csv_import' %}">
                     <i class="bi bi-cloud-upload"></i> Import/Export
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'guide' in request.path %}active{% endif %}" href="/frontdesk/guide/">
+                <a class="nav-link {% if 'guide' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'integration_guide' %}">
                     <i class="bi bi-book"></i> Integration Guide
                 </a>
             </li>
@@ -243,7 +243,7 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link text-danger" href="/frontdesk/logout/">
+                <a class="nav-link text-danger" href="{% url 'logout' %}">
                     <i class="bi bi-door-open"></i> Logout
                 </a>
             </li>
@@ -278,6 +278,9 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Base URL for API calls (handles /frontdesk prefix when behind nginx)
+        const BASE_URL = '{{ request.META.SCRIPT_NAME|default:"" }}';
+
         // CSRF token helper for AJAX
         function getCookie(name) {
             let cookieValue = null;
@@ -306,7 +309,7 @@
         });
 
         function checkHighCommand() {
-            fetch('/frontdesk/api/highcommand/')
+            fetch(BASE_URL + '/api/highcommand/')
                 .then(r => r.json())
                 .then(data => {
                     const bar = document.getElementById('hcAlertBar');
@@ -349,7 +352,7 @@
                 return;
             }
 
-            fetch('/frontdesk/api/highcommand/', {
+            fetch(BASE_URL + '/api/highcommand/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'send', sender, message, password })
@@ -375,7 +378,7 @@
                 return;
             }
 
-            fetch('/frontdesk/api/highcommand/', {
+            fetch(BASE_URL + '/api/highcommand/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'respond', id: currentHcMessageId, responder, response })

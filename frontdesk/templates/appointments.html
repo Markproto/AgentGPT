@@ -432,7 +432,7 @@ function saveInlineAppt(slotKey, customerName, purpose, duration) {
     if (h === 0) h = 12;
     formData.set('appt_time', h + ':' + m + ' ' + ampm);
 
-    fetch('/frontdesk/appointments/create/', {
+    fetch(BASE_URL + '/appointments/create/', {
         method: 'POST',
         headers: { 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
@@ -455,7 +455,7 @@ function saveInlineAppt(slotKey, customerName, purpose, duration) {
 // ─── Split Slot (30min → two 15min) ───
 function splitSlot(slotKey, existingApptId) {
     // First, shorten the existing appointment to 15 minutes
-    fetch('/frontdesk/appointments/api/', {
+    fetch(BASE_URL + '/appointments/api/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
@@ -574,7 +574,7 @@ function doubleBook(slotKey, duration) {
 
 // ─── Status Update ───
 function setStatus(id, status) {
-    fetch('/frontdesk/appointments/api/', {
+    fetch(BASE_URL + '/appointments/api/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',

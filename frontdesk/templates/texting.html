@@ -203,7 +203,7 @@ function selectAllRecipients() {
 
 function loadTemplate(templateId) {
     if (!templateId) return;
-    fetch('/frontdesk/texting/templates/api/?id=' + templateId)
+    fetch(BASE_URL + '/texting/templates/api/?id=' + templateId)
         .then(r => r.json())
         .then(d => {
             document.getElementById('messageText').value = d.content;
@@ -225,7 +225,7 @@ function sendMessage() {
         return;
     }
 
-    fetch('/frontdesk/texting/send/', {
+    fetch(BASE_URL + '/texting/send/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
