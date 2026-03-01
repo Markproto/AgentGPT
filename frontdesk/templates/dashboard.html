@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - J. Austin{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card border-start border-4 border-primary">
+            <div class="card-body">
+                <div class="stat-value text-primary">{{ total_customers }}</div>
+                <div class="stat-label">Total Customers</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card border-start border-4 border-warning">
+            <div class="card-body">
+                <div class="stat-value text-warning">{{ pending_matches }}</div>
+                <div class="stat-label">Pending Matches</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card border-start border-4 border-success">
+            <div class="card-body">
+                <div class="stat-value text-success">{{ todays_appointments }}</div>
+                <div class="stat-label">Today's Appointments</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card border-start border-4 border-info">
+            <div class="card-body">
+                <div class="stat-value text-info">{{ recent_interactions|length }}</div>
+                <div class="stat-label">Recent Interactions</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body d-flex gap-2 flex-wrap">
+                <a href="/frontdesk/customers/" class="btn btn-primary"><i class="bi bi-person-plus"></i> Manage Customers</a>
+                <a href="/frontdesk/matching/" class="btn btn-warning"><i class="bi bi-arrow-left-right"></i> View Matches</a>
+                <a href="/frontdesk/appointments/" class="btn btn-success"><i class="bi bi-calendar-plus"></i> New Appointment</a>
+                <a href="/frontdesk/texting/" class="btn btn-info text-white"><i class="bi bi-chat-dots"></i> Send Text</a>
+                <a href="/frontdesk/calendar/" class="btn btn-secondary"><i class="bi bi-calendar3"></i> Calendar</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Volume Chart & Recent Activity -->
+<div class="row g-4">
+    <div class="col-md-5">
+        <div class="card h-100">
+            <div class="card-header"><strong>Buy/Sell Volume (Troy Oz)</strong></div>
+            <div class="card-body">
+                <canvas id="volumeChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-7">
+        <div class="card h-100">
+            <div class="card-header"><strong>Recent Activity</strong></div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead><tr><th>Date</th><th>Customer</th><th>Type</th><th>Summary</th></tr></thead>
+                        <tbody>
+                            {% for interaction in recent_interactions %}
+                            <tr>
+                                <td class="text-nowrap">{{ interaction.created_at|date:"M d, H:i" }}</td>
+                                <td><a href="/frontdesk/customers/{{ interaction.customer.id }}/">{{ interaction.customer.name }}</a></td>
+                                <td><span class="badge bg-secondary">{{ interaction.get_type_display }}</span></td>
+                                <td>{{ interaction.summary|truncatewords:10 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center text-muted py-4">No recent activity</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const ctx = document.getElementById('volumeChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: ['Gold', 'Silver'],
+        datasets: [
+            { label: 'Buy Volume', data: [{{ buy_gold }}, {{ buy_silver }}], backgroundColor: '#198754' },
+            { label: 'Sell Volume', data: [{{ sell_gold }}, {{ sell_silver }}], backgroundColor: '#dc3545' }
+        ]
+    },
+    options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'Troy Oz' } } } }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% block title %}Matching - J. Austin{% endblock %}
+{% block page_title %}Bullion Matching{% endblock %}
+
+{% block content %}
+<!-- Live Prices Ticker -->
+<div class="card mb-4" id="pricesTicker">
+    <div class="card-body py-2">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-3 flex-wrap" id="pricesContainer">
+                <span class="text-muted small"><i class="bi bi-graph-up"></i> Live Spot Prices:</span>
+                <span class="text-muted small">Loading...</span>
+            </div>
+            <small class="text-muted" id="pricesTimestamp"></small>
+        </div>
+    </div>
+</div>
+
+<!-- Balance Sheet -->
+<div class="row g-4 mb-4">
+    {% for type, data in balance.items %}
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-header"><strong>{{ type }}</strong></div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-success"><i class="bi bi-arrow-down-circle"></i> Buy: {{ data.buy }} oz</span>
+                    <span class="text-danger"><i class="bi bi-arrow-up-circle"></i> Sell: {{ data.sell }} oz</span>
+                </div>
+                <div class="text-center">
+                    <strong>Net: <span class="{% if data.net > 0 %}text-success{% elif data.net < 0 %}text-danger{% endif %}">{{ data.net }} oz</span></strong>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Action Buttons -->
+<div class="mb-4 d-flex gap-2 flex-wrap">
+    <button class="btn btn-warning btn-lg" onclick="generateMatches()" id="generateBtn">
+        <i class="bi bi-lightning"></i> Generate Matches
+    </button>
+    <button class="btn btn-primary btn-lg" onclick="openManualMatch()">
+        <i class="bi bi-plus-circle"></i> Manual Match
+    </button>
+    <span id="matchResult" class="ms-3"></span>
+</div>
+
+<!-- Proposed Matches -->
+<div class="card mb-4">
+    <div class="card-header bg-warning text-dark"><strong>Proposed Matches</strong></div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead><tr><th>Buyer</th><th>Seller</th><th>Amount</th><th>Type</th><th>Margin</th><th>Actions</th></tr></thead>
+            <tbody>
+                {% for m in proposed_matches %}
+                <tr id="match-{{ m.id }}">
+                    <td><a href="/frontdesk/customers/{{ m.buyer.id }}/">{{ m.buyer.name }}</a></td>
+                    <td><a href="/frontdesk/customers/{{ m.seller.id }}/">{{ m.seller.name }}</a></td>
+                    <td>{{ m.amount }} oz</td>
+                    <td>{{ m.bullion_type }}</td>
+                    <td>{% if m.profit_margin %}${{ m.profit_margin }}{% else %}-{% endif %}</td>
+                    <td>
+                        <button class="btn btn-success btn-sm" onclick="matchAction({{ m.id }}, 'accept')"><i class="bi bi-check"></i> Accept</button>
+                        <button class="btn btn-danger btn-sm" onclick="matchAction({{ m.id }}, 'cancel')"><i class="bi bi-x"></i> Cancel</button>
+                    </td>
+                </tr>
+                {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No proposed matches. Click "Generate Matches" to find pairs.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Accepted Matches -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white"><strong>Accepted Matches</strong></div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead><tr><th>Buyer</th><th>Seller</th><th>Amount</th><th>Type</th><th>Margin</th><th>Actions</th></tr></thead>
+            <tbody>
+                {% for m in accepted_matches %}
+                <tr>
+                    <td>{{ m.buyer.name }}</td><td>{{ m.seller.name }}</td>
+                    <td>{{ m.amount }} oz</td><td>{{ m.bullion_type }}</td>
+                    <td>{% if m.profit_margin %}${{ m.profit_margin }}{% else %}-{% endif %}</td>
+                    <td><button class="btn btn-outline-success btn-sm" onclick="matchAction({{ m.id }}, 'complete')"><i class="bi bi-check-all"></i> Complete</button></td>
+                </tr>
+                {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No accepted matches</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Completed Matches -->
+<div class="card">
+    <div class="card-header bg-secondary text-white"><strong>Completed Matches</strong></div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead><tr><th>Buyer</th><th>Seller</th><th>Amount</th><th>Type</th><th>Margin</th><th>Date</th><th>Notes</th></tr></thead>
+            <tbody>
+                {% for m in completed_matches %}
+                <tr>
+                    <td>{{ m.buyer.name }}</td><td>{{ m.seller.name }}</td>
+                    <td>{{ m.amount }} oz</td><td>{{ m.bullion_type }}</td>
+                    <td>{% if m.profit_margin %}${{ m.profit_margin }}{% else %}-{% endif %}</td>
+                    <td>{{ m.created_at|date:"M d, Y" }}</td>
+                    <td><small class="text-muted">{{ m.notes|truncatechars:30 }}</small></td>
+                </tr>
+                {% empty %}<tr><td colspan="7" class="text-center text-muted py-3">No completed matches</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Manual Match Modal -->
+<div class="modal fade" id="manualMatchModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Manual Match (Consignment Sale)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">Record a consignment sale - enter the seller (consignor) and the buyer who purchased the item.</p>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Product Description</label>
+                    <input type="text" id="mmProduct" class="form-control" placeholder="e.g., 1oz Gold Eagle, 10oz Silver Bar">
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Seller (Consignor)</label>
+                            <input type="text" id="mmSellerName" class="form-control"
+                                   list="customerList" placeholder="Type name..." autocomplete="off">
+                            <small class="text-muted">Who gave you the item</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Buyer</label>
+                            <input type="text" id="mmBuyerName" class="form-control"
+                                   list="customerList" placeholder="Type name..." autocomplete="off">
+                            <small class="text-muted">Who purchased the item</small>
+                        </div>
+                    </div>
+                </div>
+
+                <datalist id="customerList">
+                    {% for c in customers %}
+                    <option data-id="{{ c.id }}" value="{{ c.name }}">{{ c.get_category_display }}</option>
+                    {% endfor %}
+                </datalist>
+
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Amount (oz)</label>
+                            <input type="number" id="mmAmount" class="form-control" step="0.0001" min="0.0001" placeholder="1.0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Metal Type</label>
+                            <select id="mmBullionType" class="form-select">
+                                {% for value, label in bullion_types %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Profit Margin ($)</label>
+                            <input type="number" id="mmProfitMargin" class="form-control" step="0.01" placeholder="0.00">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    <textarea id="mmNotes" class="form-control" rows="2" placeholder="Any additional details..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveManualMatch()">
+                    <i class="bi bi-check-lg"></i> Record Sale
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Live Prices
+function fetchPrices() {
+    fetch('/frontdesk/api/prices/')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success || !data.prices) {
+                document.getElementById('pricesContainer').innerHTML =
+                    '<span class="text-muted small"><i class="bi bi-graph-up"></i> Live Spot Prices:</span>' +
+                    '<span class="text-warning small">Unavailable</span>';
+                return;
+            }
+
+            let html = '<span class="text-muted small"><i class="bi bi-graph-up"></i> Live Spot:</span>';
+
+            data.prices.forEach(p => {
+                const changeClass = p.change >= 0 ? 'text-success' : 'text-danger';
+                const changeIcon = p.change >= 0 ? 'bi-caret-up-fill' : 'bi-caret-down-fill';
+                const changeStr = p.changePercent !== null ? ` (${p.changePercent >= 0 ? '+' : ''}${p.changePercent.toFixed(2)}%)` : '';
+
+                html += `
+                    <div class="d-inline-flex align-items-center border rounded px-2 py-1 me-1" style="background: #f8f9fa;">
+                        <strong class="me-1">${p.name}</strong>
+                        <span class="text-primary me-1">B: $${p.bid.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                        <span class="text-danger me-1">A: $${p.ask.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                        <small class="${changeClass}"><i class="bi ${changeIcon}"></i>${changeStr}</small>
+                    </div>`;
+            });
+
+            document.getElementById('pricesContainer').innerHTML = html;
+            document.getElementById('pricesTimestamp').textContent = data.timestamp || '';
+        })
+        .catch(err => {
+            console.error('Failed to fetch prices:', err);
+        });
+}
+
+// Fetch prices on load and refresh every 60 seconds
+document.addEventListener('DOMContentLoaded', function() {
+    fetchPrices();
+    setInterval(fetchPrices, 60000);
+});
+
+function generateMatches() {
+    const btn = document.getElementById('generateBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass"></i> Generating...';
+    fetch('/frontdesk/matching/generate/', {
+        method: 'POST', headers: { 'X-CSRFToken': csrftoken }, credentials: 'same-origin'
+    }).then(r => r.json()).then(d => {
+        document.getElementById('matchResult').innerHTML =
+            '<span class="badge bg-success fs-6">' + d.matches_created + ' matches created</span>';
+        setTimeout(() => location.reload(), 1500);
+    }).catch(() => {
+        document.getElementById('matchResult').innerHTML = '<span class="badge bg-danger">Error</span>';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-lightning"></i> Generate Matches';
+    });
+}
+
+function matchAction(id, action) {
+    fetch('/frontdesk/matching/' + id + '/' + action + '/', {
+        method: 'POST', headers: { 'X-CSRFToken': csrftoken }, credentials: 'same-origin'
+    }).then(r => r.json()).then(() => location.reload());
+}
+
+let manualMatchModal;
+document.addEventListener('DOMContentLoaded', function() {
+    manualMatchModal = new bootstrap.Modal(document.getElementById('manualMatchModal'));
+});
+
+function openManualMatch() {
+    document.getElementById('mmProduct').value = '';
+    document.getElementById('mmSellerName').value = '';
+    document.getElementById('mmBuyerName').value = '';
+    document.getElementById('mmAmount').value = '';
+    document.getElementById('mmBullionType').value = 'GOLD';
+    document.getElementById('mmProfitMargin').value = '';
+    document.getElementById('mmNotes').value = '';
+    manualMatchModal.show();
+    setTimeout(() => document.getElementById('mmProduct').focus(), 300);
+}
+
+function saveManualMatch() {
+    const product = document.getElementById('mmProduct').value.trim();
+    const sellerName = document.getElementById('mmSellerName').value.trim();
+    const buyerName = document.getElementById('mmBuyerName').value.trim();
+    const amount = document.getElementById('mmAmount').value;
+    const bullionType = document.getElementById('mmBullionType').value;
+    const profitMargin = document.getElementById('mmProfitMargin').value;
+    const notes = document.getElementById('mmNotes').value.trim();
+
+    // Find customer IDs if they exist
+    let sellerId = '', buyerId = '';
+    document.querySelectorAll('#customerList option').forEach(opt => {
+        if (opt.value.toLowerCase() === sellerName.toLowerCase()) sellerId = opt.dataset.id;
+        if (opt.value.toLowerCase() === buyerName.toLowerCase()) buyerId = opt.dataset.id;
+    });
+
+    const data = {
+        seller_id: sellerId || null,
+        seller_name: sellerName,
+        buyer_id: buyerId || null,
+        buyer_name: buyerName,
+        amount: parseFloat(amount),
+        bullion_type: bullionType,
+        product: product,
+        notes: notes,
+        profit_margin: profitMargin ? parseFloat(profitMargin) : null
+    };
+
+    fetch('/frontdesk/matching/manual/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(d => {
+        if (d.status === 'created') {
+            manualMatchModal.hide();
+            location.reload();
+        } else {
+            alert('Error: ' + (d.error || 'Unknown error'));
+        }
+    })
+    .catch(err => alert('Failed to save: ' + err.message));
+}
+</script>
+{% endblock %}

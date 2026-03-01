@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Customers - J. Austin{% endblock %}
+{% block page_title %}Customer Spreadsheet{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/handsontable@14.1.0/dist/handsontable.full.min.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<!-- Toolbar -->
+<div class="card mb-3">
+    <div class="card-body d-flex gap-2 flex-wrap align-items-center">
+        <button class="btn btn-primary btn-sm" onclick="addRow()"><i class="bi bi-plus-lg"></i> Add Customer</button>
+        <button class="btn btn-success btn-sm" onclick="saveAll()"><i class="bi bi-check-lg"></i> Save Changes</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="exportCSV()"><i class="bi bi-download"></i> Export CSV</button>
+        <div class="ms-auto d-flex gap-2 align-items-center">
+            <label class="mb-0 text-muted">Filter:</label>
+            <select id="actionFilter" class="form-select form-select-sm" style="width:130px" onchange="loadData()">
+                <option value="">All Actions</option>
+                {% for value, label in actions %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select id="metalFilter" class="form-select form-select-sm" style="width:130px" onchange="loadData()">
+                <option value="">All Metals</option>
+                {% for value, label in metals %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select id="formFilter" class="form-select form-select-sm" style="width:120px" onchange="loadData()">
+                <option value="">All Forms</option>
+                {% for value, label in metal_forms %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Spreadsheet -->
+<div class="card">
+    <div class="card-body p-0">
+        <div id="spreadsheet" style="width:100%; overflow:auto;"></div>
+    </div>
+</div>
+
+<div id="saveStatus" class="position-fixed bottom-0 end-0 m-3" style="z-index:9999"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/handsontable@14.1.0/dist/handsontable.full.min.js"></script>
+<script>
+let hot;
+let customerData = [];
+const actionChoices = ['', {% for v, l in actions %}"{{ v }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+const metalChoices = ['', {% for v, l in metals %}"{{ v }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+const metalFormChoices = ['', {% for v, l in metal_forms %}"{{ v }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+const statuses = [{% for v, l in statuses %}"{{ v }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+const bullionTypes = [{% for v, l in bullion_types %}"{{ v }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+
+function initSpreadsheet(data) {
+    const container = document.getElementById('spreadsheet');
+    if (hot) hot.destroy();
+
+    hot = new Handsontable(container, {
+        data: data,
+        colHeaders: ['ID','Name','Phone','Email','Action','Metal','Form','Amount (oz)','Price/oz','Status','Notes','Last Contact','Created'],
+        columns: [
+            { data: 'id', readOnly: true, width: 50 },
+            { data: 'name', width: 150 },
+            { data: 'phone', width: 130 },
+            { data: 'email', width: 180 },
+            { data: 'action', type: 'dropdown', source: actionChoices, width: 100 },
+            { data: 'metal', type: 'dropdown', source: metalChoices, width: 110 },
+            { data: 'metal_form', type: 'dropdown', source: metalFormChoices, width: 100 },
+            { data: 'bullion_amount', type: 'numeric', width: 100 },
+            { data: 'price_per_oz', type: 'numeric', numericFormat: { pattern: '$0,0.00' }, width: 100 },
+            { data: 'status', type: 'dropdown', source: statuses, width: 100 },
+            { data: 'notes', width: 200 },
+            { data: 'last_contact', readOnly: true, width: 130 },
+            { data: 'created_at', readOnly: true, width: 130 }
+        ],
+        rowHeaders: true,
+        height: 'auto',
+        maxRows: 5000,
+        licenseKey: 'non-commercial-and-evaluation',
+        stretchH: 'all',
+        manualColumnResize: true,
+        filters: true,
+        dropdownMenu: true,
+        contextMenu: ['row_above','row_below','remove_row','---------','copy','cut'],
+        afterChange: function(changes, source) {
+            if (source === 'loadData') return;
+            if (changes) {
+                changes.forEach(([row, prop, oldVal, newVal]) => {
+                    if (oldVal !== newVal) {
+                        const rowData = hot.getSourceDataAtRow(row);
+                        if (rowData.id) {
+                            saveRow(rowData);
+                        }
+                    }
+                });
+            }
+        }
+    });
+}
+
+function loadData() {
+    const params = new URLSearchParams();
+    const action = document.getElementById('actionFilter').value;
+    const metal = document.getElementById('metalFilter').value;
+    const form = document.getElementById('formFilter').value;
+    if (action) params.set('action', action);
+    if (metal) params.set('metal', metal);
+    if (form) params.set('metal_form', form);
+    const qs = params.toString();
+    const url = '/frontdesk/customers/api/' + (qs ? '?' + qs : '');
+    fetch(url, { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(d => {
+            customerData = d.data || [];
+            initSpreadsheet(customerData);
+        });
+}
+
+function saveRow(rowData) {
+    fetch('/frontdesk/customers/api/', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify(rowData)
+    }).then(r => r.json()).then(d => {
+        showStatus('Saved', 'success');
+    }).catch(e => showStatus('Save failed', 'danger'));
+}
+
+function addRow() {
+    fetch('/frontdesk/customers/api/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify({ name: 'New Customer', action: '', metal: '', metal_form: '', status: 'PENDING' })
+    }).then(r => r.json()).then(d => {
+        loadData();
+        showStatus('Customer added', 'success');
+    });
+}
+
+function saveAll() {
+    const data = hot.getSourceData();
+    let saved = 0;
+    data.forEach(row => {
+        if (row.id) {
+            fetch('/frontdesk/customers/api/', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                credentials: 'same-origin',
+                body: JSON.stringify(row)
+            }).then(() => { saved++; if (saved === data.length) showStatus('All saved', 'success'); });
+        }
+    });
+}
+
+function exportCSV() {
+    const csv = hot.getPlugin('exportFile');
+    csv.downloadFile('csv', { filename: 'customers_export', columnHeaders: true });
+}
+
+function showStatus(msg, type) {
+    const el = document.getElementById('saveStatus');
+    el.innerHTML = '<div class="alert alert-' + type + ' alert-dismissible fade show py-2 px-3">' + msg + '<button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button></div>';
+    setTimeout(() => { el.innerHTML = ''; }, 3000);
+}
+
+loadData();
+</script>
+{% endblock %}

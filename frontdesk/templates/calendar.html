@@ -1,0 +1,1214 @@
+{% extends "base.html" %}
+{% block title %}Calendar - J. Austin{% endblock %}
+{% block page_title %}Calendar{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+<style>
+/* Event styling - readable text on colored backgrounds */
+.fc-event { cursor: pointer; border: none; }
+.fc-daygrid-event { padding: 2px 4px; }
+.fc-timegrid-event { min-height: 28px !important; overflow: visible !important; }
+.fc-timegrid-event .fc-event-main { padding: 2px 6px; font-size: 0.82rem; line-height: 1.3; overflow: visible !important; }
+.fc-event-main { color: #fff !important; font-weight: 500; }
+/* Make short events (15min) still show text */
+.fc-timegrid-event-harness { overflow: visible !important; }
+.fc-timegrid-col-events { overflow: visible !important; }
+
+/* Status colors */
+.fc-event.st-SCHEDULED { background-color: #0d6efd !important; border-color: #0d6efd !important; }
+.fc-event.st-CONFIRMED { background-color: #198754 !important; border-color: #198754 !important; }
+.fc-event.st-COMPLETED { background-color: #6c757d !important; border-color: #6c757d !important; }
+.fc-event.st-CANCELED {
+    background-color: #f8d7da !important; border-color: #dc3545 !important;
+    text-decoration: line-through; opacity: 0.6;
+}
+.fc-event.st-CANCELED .fc-event-main { color: #842029 !important; }
+.fc-event.st-NO_SHOW { background-color: #ffc107 !important; border-color: #ffc107 !important; }
+.fc-event.st-NO_SHOW .fc-event-main { color: #664d03 !important; }
+
+/* Day notes - blue ghost behind appointments */
+.fc-event.ev-note {
+    background-color: rgba(13, 110, 253, 0.12) !important;
+    border: 1px dashed rgba(13, 110, 253, 0.4) !important;
+    z-index: 0 !important;
+}
+.fc-event.ev-note .fc-event-main {
+    color: rgba(13, 110, 253, 0.7) !important;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    padding: 1px 4px;
+}
+/* Notes take half width in time grid so appointments fit beside them */
+.fc-timegrid-event.ev-note {
+    max-width: 48% !important;
+    right: auto !important;
+    min-height: 20px !important;
+}
+.fc-daygrid-event.ev-note {
+    background-color: rgba(13, 110, 253, 0.1) !important;
+    border: 1px dashed rgba(13, 110, 253, 0.35) !important;
+}
+.fc-daygrid-event.ev-note .fc-event-main { color: #4a7fcc !important; }
+
+/* Detail modal */
+.status-badge {
+    display: inline-block; padding: 0.25rem 0.6rem; border-radius: 4px;
+    font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.status-SCHEDULED { background: #cfe2ff; color: #084298; }
+.status-CONFIRMED { background: #d1e7dd; color: #0f5132; }
+.status-COMPLETED { background: #e2e3e5; color: #41464b; }
+.status-CANCELED { background: #f8d7da; color: #842029; }
+.status-NO_SHOW { background: #fff3cd; color: #664d03; }
+
+.appt-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dee2e6; }
+.appt-actions .btn { flex: 1; min-width: 90px; }
+
+/* ─── Mobile Responsive ─── */
+@media (max-width: 768px) {
+    /* Stack toolbar vertically */
+    .fc .fc-toolbar { flex-wrap: wrap; gap: 0.4rem; }
+    .fc .fc-toolbar-title { font-size: 1.1rem; order: -1; width: 100%; text-align: center; }
+    .fc .fc-toolbar .fc-toolbar-chunk { display: flex; justify-content: center; }
+    /* Smaller buttons */
+    .fc .fc-button { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+    .fc .fc-button-group .fc-button { font-size: 0.72rem; padding: 0.2rem 0.4rem; }
+    /* Narrower time axis */
+    .fc .fc-timegrid-axis { width: 42px !important; }
+    .fc .fc-timegrid-slot-label { font-size: 0.7rem; }
+    /* Event text smaller */
+    .fc-timegrid-event .fc-event-main { font-size: 0.72rem; padding: 1px 3px; }
+    .fc-daygrid-event { font-size: 0.72rem; padding: 1px 3px; }
+    /* Modals full-width on mobile */
+    .modal-dialog { margin: 0.5rem; max-width: calc(100% - 1rem); }
+    .modal-sm { max-width: calc(100% - 1rem); }
+    /* Action buttons wrap tighter */
+    .appt-actions .btn { min-width: 70px; font-size: 0.78rem; padding: 0.3rem 0.5rem; }
+    /* Card no padding on mobile */
+    .card-body { padding: 0.5rem; }
+}
+
+@media (max-width: 480px) {
+    .fc .fc-toolbar-title { font-size: 0.95rem; }
+    .fc .fc-button { font-size: 0.68rem; padding: 0.2rem 0.35rem; }
+    .fc .fc-timegrid-slot-label { font-size: 0.65rem; }
+    .fc-timegrid-event .fc-event-main { font-size: 0.65rem; }
+    .appt-actions { gap: 0.3rem; }
+    .appt-actions .btn { min-width: 60px; font-size: 0.72rem; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div id="calendar"></div>
+    </div>
+</div>
+
+<!-- New Appointment Modal -->
+<div class="modal fade" id="appointmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">New Appointment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="appointmentForm" onsubmit="event.preventDefault(); saveAppointment();">
+                    <div class="mb-3">
+                        <label class="form-label">Customer</label>
+                        <input type="text" id="apptCustomerName" class="form-control"
+                               list="calendarCustomerList" required
+                               placeholder="Type any name (new or existing)..." autocomplete="off">
+                        <datalist id="calendarCustomerList">
+                            {% for c in customers %}
+                            <option data-id="{{ c.id }}" value="{{ c.name }}">{{ c.get_category_display }}</option>
+                            {% endfor %}
+                        </datalist>
+                        <small class="text-muted">New names are added automatically</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" id="apptPhone" class="form-control"
+                               placeholder="(555) 123-4567" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Date & Time</label>
+                        <input type="datetime-local" id="apptDatetime" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">End Time</label>
+                        <input type="datetime-local" id="apptEndDatetime" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Purpose</label>
+                        <input type="text" id="apptPurpose" class="form-control" required placeholder="e.g., Buy 10oz Gold Bullion">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea id="apptNotes" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-2 p-2 bg-light rounded" style="font-size:0.85rem;">
+                        <div class="d-flex flex-wrap gap-3 align-items-center">
+                            <div>
+                                <span class="fw-bold me-1">Action:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="apptAction" id="apptActionNone" value="" checked>
+                                    <label class="btn btn-outline-secondary" for="apptActionNone">--</label>
+                                    <input type="radio" class="btn-check" name="apptAction" id="apptActionBuying" value="BUYING">
+                                    <label class="btn btn-outline-primary" for="apptActionBuying">Buying</label>
+                                    <input type="radio" class="btn-check" name="apptAction" id="apptActionSelling" value="SELLING">
+                                    <label class="btn btn-outline-primary" for="apptActionSelling">Selling</label>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="fw-bold me-1">Metal:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="apptMetal" id="apptMetalNone" value="" checked>
+                                    <label class="btn btn-outline-secondary" for="apptMetalNone">--</label>
+                                    <input type="radio" class="btn-check" name="apptMetal" id="apptMetalGold" value="GOLD">
+                                    <label class="btn btn-outline-warning" for="apptMetalGold">Gold</label>
+                                    <input type="radio" class="btn-check" name="apptMetal" id="apptMetalSilver" value="SILVER">
+                                    <label class="btn btn-outline-secondary" for="apptMetalSilver">Silver</label>
+                                    <input type="radio" class="btn-check" name="apptMetal" id="apptMetalPlatinum" value="PLATINUM">
+                                    <label class="btn btn-outline-info" for="apptMetalPlatinum">Platinum</label>
+                                    <input type="radio" class="btn-check" name="apptMetal" id="apptMetalPalladium" value="PALLADIUM">
+                                    <label class="btn btn-outline-dark" for="apptMetalPalladium">Palladium</label>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="fw-bold me-1">Form:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="apptForm" id="apptFormNone" value="" checked>
+                                    <label class="btn btn-outline-secondary" for="apptFormNone">--</label>
+                                    <input type="radio" class="btn-check" name="apptForm" id="apptFormBullion" value="BULLION">
+                                    <label class="btn btn-outline-success" for="apptFormBullion">Bullion</label>
+                                    <input type="radio" class="btn-check" name="apptForm" id="apptFormScrap" value="SCRAP">
+                                    <label class="btn btn-outline-success" for="apptFormScrap">Scrap</label>
+                                    <input type="radio" class="btn-check" name="apptForm" id="apptFormOther" value="OTHER">
+                                    <label class="btn btn-outline-success" for="apptFormOther">Other</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Line Items Section (Multiple Metals/Products) -->
+                    <div class="mb-3 p-2 border rounded bg-light" id="apptLineItemsSection">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-box-seam text-primary"></i>
+                                <span class="fw-bold">Items to Buy/Sell</span>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="addLineItem()">
+                                <i class="bi bi-plus-lg"></i> Add Item
+                            </button>
+                        </div>
+                        <div id="lineItemsContainer">
+                            <!-- Line items will be added here dynamically -->
+                        </div>
+                        <small class="text-muted d-block mt-1">Add items the customer is buying or selling. Multiple items create separate entries.</small>
+                    </div>
+                    <button type="submit" class="d-none"></button>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveAppointment()">Save Appointment</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Detail / Edit Modal -->
+<div class="modal fade" id="eventDetailModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="eventBody"></div>
+                <div id="eventEditForm" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label">Customer</label>
+                        <input type="text" id="editCustomerName" class="form-control"
+                               list="calendarCustomerList" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" id="editPhone" class="form-control"
+                               placeholder="(555) 123-4567" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Date & Time</label>
+                        <input type="datetime-local" id="editDatetime" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">End Time</label>
+                        <input type="datetime-local" id="editEndDatetime" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Purpose</label>
+                        <input type="text" id="editPurpose" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea id="editNotes" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-2 p-2 bg-light rounded" style="font-size:0.85rem;">
+                        <div class="d-flex flex-wrap gap-3 align-items-center">
+                            <div>
+                                <span class="fw-bold me-1">Action:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="editAction" id="editActionNone" value="" checked>
+                                    <label class="btn btn-outline-secondary" for="editActionNone">--</label>
+                                    <input type="radio" class="btn-check" name="editAction" id="editActionBuying" value="BUYING">
+                                    <label class="btn btn-outline-primary" for="editActionBuying">Buying</label>
+                                    <input type="radio" class="btn-check" name="editAction" id="editActionSelling" value="SELLING">
+                                    <label class="btn btn-outline-primary" for="editActionSelling">Selling</label>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="fw-bold me-1">Metal:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="editMetal" id="editMetalNone" value="" checked>
+                                    <label class="btn btn-outline-secondary" for="editMetalNone">--</label>
+                                    <input type="radio" class="btn-check" name="editMetal" id="editMetalGold" value="GOLD">
+                                    <label class="btn btn-outline-warning" for="editMetalGold">Gold</label>
+                                    <input type="radio" class="btn-check" name="editMetal" id="editMetalSilver" value="SILVER">
+                                    <label class="btn btn-outline-secondary" for="editMetalSilver">Silver</label>
+                                    <input type="radio" class="btn-check" name="editMetal" id="editMetalPlatinum" value="PLATINUM">
+                                    <label class="btn btn-outline-info" for="editMetalPlatinum">Platinum</label>
+                                    <input type="radio" class="btn-check" name="editMetal" id="editMetalPalladium" value="PALLADIUM">
+                                    <label class="btn btn-outline-dark" for="editMetalPalladium">Palladium</label>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="fw-bold me-1">Form:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="editForm" id="editFormNone" value="" checked>
+                                    <label class="btn btn-outline-secondary" for="editFormNone">--</label>
+                                    <input type="radio" class="btn-check" name="editForm" id="editFormBullion" value="BULLION">
+                                    <label class="btn btn-outline-success" for="editFormBullion">Bullion</label>
+                                    <input type="radio" class="btn-check" name="editForm" id="editFormScrap" value="SCRAP">
+                                    <label class="btn btn-outline-success" for="editFormScrap">Scrap</label>
+                                    <input type="radio" class="btn-check" name="editForm" id="editFormOther" value="OTHER">
+                                    <label class="btn btn-outline-success" for="editFormOther">Other</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Inventory Link Section (Edit) -->
+                    <div class="mb-3 p-2 border rounded">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-box-seam text-primary"></i>
+                            <span class="fw-bold">Inventory Link</span>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-8">
+                                <select id="editInventoryNeed" class="form-select form-select-sm">
+                                    <option value="">-- No Inventory Link --</option>
+                                </select>
+                            </div>
+                            <div class="col-4">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">Qty (oz)</span>
+                                    <input type="number" id="editQuantity" class="form-control" min="0.0001" step="0.0001" value="" placeholder="0">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="appt-actions" id="eventActions"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Note Modal -->
+<div class="modal fade" id="noteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="noteModalTitle">Add Note</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="noteForm" onsubmit="event.preventDefault(); saveNote();">
+                    <input type="hidden" id="noteId" value="">
+                    <div class="mb-3">
+                        <label class="form-label">Date</label>
+                        <input type="date" id="noteDate" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Time <small class="text-muted">(optional)</small></label>
+                        <input type="time" id="noteTime" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Note</label>
+                        <textarea id="noteContent" class="form-control" rows="3" required placeholder="Write your note..."></textarea>
+                    </div>
+                    <button type="submit" class="d-none"></button>
+                </form>
+            </div>
+            <div class="modal-footer" id="noteActions">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveNote()">Save Note</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Note Detail Modal (click on note event) -->
+<div class="modal fade" id="noteDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-sticky"></i> Note</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="noteDetailBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary btn-sm" id="noteEditBtn">Edit</button>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="noteDeleteBtn">Delete</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+<script>
+let calendar;
+let currentEventId = null;
+let currentEventData = null;
+let editMode = false;
+let dayNotes = [];
+let lastEventHash = '';
+let pollInterval = null;
+let eventDetailModal = null;
+let appointmentModal = null;
+let noteModal = null;
+let noteDetailModal = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const el = document.getElementById('calendar');
+    calendar = new FullCalendar.Calendar(el, {
+        initialView: 'timeGridDay',
+        height: 'auto',
+        headerToolbar: {
+            left: 'prev,next today addNoteBtn',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        customButtons: {
+            addNoteBtn: {
+                text: '+ Note',
+                click: function() {
+                    openNewNote();
+                }
+            }
+        },
+        eventSources: [
+            { url: '/frontdesk/appointments/api/', failure: function() { alert('Error loading events'); } },
+            { url: '/frontdesk/notes/api/', id: 'notes', failure: function() {} ,
+              success: function(rawEvents) {
+                  dayNotes = rawEvents;
+                  return rawEvents.map(function(n) {
+                      var start = n.date;
+                      var isAllDay = !n.time;
+                      if (n.time) start += 'T' + n.time;
+                      // Notes are always 15 min so they stay small
+                      var end = null;
+                      if (n.time) {
+                          var s = new Date(start);
+                          s.setMinutes(s.getMinutes() + 15);
+                          end = s.toISOString();
+                      }
+                      return {
+                          id: 'note-' + n.id,
+                          title: n.content,
+                          start: start,
+                          end: end,
+                          allDay: isAllDay,
+                          display: 'auto',
+                          extendedProps: { type: 'note', noteId: n.id, content: n.content, date: n.date, time: n.time }
+                      };
+                  });
+              }
+            }
+        ],
+        slotDuration: '00:15:00',
+        slotMinTime: '10:00:00',
+        slotMaxTime: '18:00:00',
+        editable: true,
+        selectable: true,
+        selectMirror: true,
+        dayMaxEvents: true,
+        eventClassNames: function(arg) {
+            var props = arg.event.extendedProps || {};
+            if (props.type === 'note') return ['ev-note'];
+            var status = props.status || 'SCHEDULED';
+            return ['st-' + status];
+        },
+        eventContent: function(arg) {
+            var props = arg.event.extendedProps || {};
+            var el = document.createElement('div');
+            el.style.overflow = 'hidden';
+            el.style.whiteSpace = 'nowrap';
+            el.style.textOverflow = 'ellipsis';
+            el.style.width = '100%';
+
+            if (props.type === 'note') {
+                el.innerHTML = '<i class="bi bi-sticky"></i> ' + (props.content || arg.event.title || '');
+                return { domNodes: [el] };
+            }
+
+            var timeText = arg.timeText || '';
+            var name = props.customer_name || '';
+            var purpose = props.purpose || arg.event.title || '';
+            if (timeText) {
+                el.innerHTML = '<b>' + timeText + '</b> ' + name + ' - ' + purpose;
+            } else {
+                el.innerHTML = name + ' - ' + purpose;
+            }
+            return { domNodes: [el] };
+        },
+        select: function(info) {
+            document.getElementById('apptCustomerName').value = '';
+            document.getElementById('apptPhone').value = '';
+            document.getElementById('apptPurpose').value = '';
+            document.getElementById('apptNotes').value = '';
+            document.getElementById('apptActionNone').checked = true;
+            document.getElementById('apptMetalNone').checked = true;
+            document.getElementById('apptFormNone').checked = true;
+            document.getElementById('apptDatetime').value = info.startStr.slice(0, 16);
+            if (info.endStr) document.getElementById('apptEndDatetime').value = info.endStr.slice(0, 16);
+            // Clear and add one empty line item for inventory
+            clearLineItems();
+            addLineItem();
+            appointmentModal.show();
+            setTimeout(function() { document.getElementById('apptCustomerName').focus(); }, 300);
+        },
+        eventClick: function(info) {
+            var props = info.event.extendedProps || {};
+
+            // Notes: show note detail modal
+            if (props.type === 'note') {
+                showNoteDetail(props.noteId, props.content, props.date, props.time);
+                return;
+            }
+
+            // Appointments: show detail/edit modal
+            currentEventId = info.event.id;
+            currentEventData = {
+                customer_name: props.customer_name || '',
+                phone: props.phone || '',
+                action: props.action || '',
+                metal: props.metal || '',
+                metal_form: props.metal_form || '',
+                purpose: props.purpose || '',
+                location: props.location || '',
+                notes: props.notes || '',
+                status: props.status || 'SCHEDULED',
+                start: info.event.start,
+                end: info.event.end,
+                inventory_need_id: props.inventory_need_id || '',
+                quantity: props.quantity || ''
+            };
+            showEventDetail();
+        },
+        eventDrop: function(info) {
+            var props = info.event.extendedProps || {};
+            if (props.type === 'note') {
+                // Update note date/time
+                var newDate = info.event.start;
+                var dateStr = newDate.getFullYear() + '-' + String(newDate.getMonth()+1).padStart(2,'0') + '-' + String(newDate.getDate()).padStart(2,'0');
+                var timeStr = info.event.allDay ? '' : String(newDate.getHours()).padStart(2,'0') + ':' + String(newDate.getMinutes()).padStart(2,'0');
+                fetch('/frontdesk/notes/api/', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ id: props.noteId, date: dateStr, time: timeStr || null })
+                });
+                return;
+            }
+            fetch('/frontdesk/appointments/api/', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    id: info.event.id,
+                    datetime: info.event.start.toISOString(),
+                    end_datetime: info.event.end ? info.event.end.toISOString() : null
+                })
+            });
+        }
+    });
+    calendar.render();
+
+    // Start polling for real-time updates (every 10 seconds)
+    startCalendarPolling();
+
+    // Initialize modal instances (reuse to prevent backdrop issues)
+    eventDetailModal = new bootstrap.Modal(document.getElementById('eventDetailModal'));
+    appointmentModal = new bootstrap.Modal(document.getElementById('appointmentModal'));
+    noteModal = new bootstrap.Modal(document.getElementById('noteModal'));
+    noteDetailModal = new bootstrap.Modal(document.getElementById('noteDetailModal'));
+
+    // Fast entry: Customer → Tab → Phone → Tab → Purpose → Tab → Notes → Enter submits
+    document.getElementById('apptCustomerName').addEventListener('keydown', function(e) {
+        if (e.key === 'Tab' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('apptPhone').focus();
+        }
+        if (e.key === 'Enter') { e.preventDefault(); saveAppointment(); }
+    });
+    document.getElementById('apptPhone').addEventListener('keydown', function(e) {
+        if (e.key === 'Tab' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('apptPurpose').focus();
+        }
+        if (e.key === 'Enter') { e.preventDefault(); saveAppointment(); }
+    });
+    document.getElementById('apptPurpose').addEventListener('keydown', function(e) {
+        if (e.key === 'Tab' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('apptNotes').focus();
+        }
+        if (e.key === 'Enter') { e.preventDefault(); saveAppointment(); }
+    });
+    document.getElementById('apptNotes').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveAppointment(); }
+    });
+});
+
+// ─── Event Detail (View) ───
+function showEventDetail() {
+    editMode = false;
+    document.getElementById('eventEditForm').style.display = 'none';
+    document.getElementById('eventBody').style.display = '';
+
+    var d = currentEventData;
+    var status = d.status;
+    var statusBadge = '<span class="status-badge status-' + status + '">' + status.replace('_', ' ') + '</span>';
+    var timeStr = d.start ? d.start.toLocaleString() : '';
+    if (d.end) timeStr += ' - ' + d.end.toLocaleTimeString();
+
+    var catParts = [];
+    if (d.action) catParts.push(d.action);
+    if (d.metal) catParts.push(d.metal);
+    if (d.metal_form) catParts.push(d.metal_form);
+    var catStr = catParts.length ? catParts.join(' / ') : '';
+
+    document.getElementById('eventTitle').textContent = d.customer_name + ' - ' + d.purpose;
+    document.getElementById('eventBody').innerHTML =
+        '<p><strong>Customer:</strong> ' + d.customer_name + '</p>' +
+        (d.phone ? '<p><strong>Phone:</strong> ' + d.phone + '</p>' : '') +
+        '<p><strong>Purpose:</strong> ' + d.purpose + '</p>' +
+        (catStr ? '<p><strong>Category:</strong> ' + catStr + '</p>' : '') +
+        '<p><strong>Location:</strong> ' + d.location + '</p>' +
+        '<p><strong>Status:</strong> ' + statusBadge + '</p>' +
+        '<p><strong>Notes:</strong> ' + (d.notes || 'None') + '</p>' +
+        '<p><strong>Time:</strong> ' + timeStr + '</p>';
+
+    // Build action buttons
+    var actions = '';
+    if (status === 'SCHEDULED') {
+        actions += '<button class="btn btn-success" onclick="updateStatus(\'CONFIRMED\')"><i class="bi bi-check-lg"></i> Confirm</button>';
+        actions += '<button class="btn btn-danger" onclick="updateStatus(\'CANCELED\')"><i class="bi bi-x-lg"></i> Cancel</button>';
+    } else if (status === 'CONFIRMED') {
+        actions += '<button class="btn btn-secondary" onclick="updateStatus(\'COMPLETED\')"><i class="bi bi-check-circle"></i> Complete</button>';
+        actions += '<button class="btn btn-warning" onclick="updateStatus(\'NO_SHOW\')"><i class="bi bi-person-x"></i> No Show</button>';
+        actions += '<button class="btn btn-danger" onclick="updateStatus(\'CANCELED\')"><i class="bi bi-x-lg"></i> Cancel</button>';
+    } else if (status === 'CANCELED') {
+        actions += '<button class="btn btn-primary" onclick="updateStatus(\'SCHEDULED\')"><i class="bi bi-arrow-counterclockwise"></i> Reschedule</button>';
+    } else if (status === 'NO_SHOW') {
+        actions += '<button class="btn btn-primary" onclick="updateStatus(\'SCHEDULED\')"><i class="bi bi-arrow-counterclockwise"></i> Reschedule</button>';
+    }
+    actions += '<button class="btn btn-outline-primary" onclick="startEdit()"><i class="bi bi-pencil"></i> Edit</button>';
+    actions += '<button class="btn btn-outline-danger" onclick="deleteAppointment()"><i class="bi bi-trash"></i> Delete</button>';
+    actions += '<button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>';
+    document.getElementById('eventActions').innerHTML = actions;
+
+    // Only show if not already visible (prevents backdrop stacking)
+    var modalEl = document.getElementById('eventDetailModal');
+    if (!modalEl.classList.contains('show')) {
+        eventDetailModal.show();
+    }
+}
+
+// ─── Edit Mode ───
+function startEdit() {
+    editMode = true;
+    document.getElementById('eventBody').style.display = 'none';
+    document.getElementById('eventEditForm').style.display = '';
+    document.getElementById('eventTitle').textContent = 'Edit Appointment';
+
+    var d = currentEventData;
+    document.getElementById('editCustomerName').value = d.customer_name;
+    document.getElementById('editPhone').value = d.phone || '';
+    document.getElementById('editPurpose').value = d.purpose;
+    document.getElementById('editNotes').value = d.notes || '';
+    // Set category radio buttons
+    var actionVal = d.action || '';
+    var metalVal = d.metal || '';
+    var formVal = d.metal_form || '';
+    var actionRadio = document.querySelector('input[name="editAction"][value="' + actionVal + '"]');
+    if (actionRadio) actionRadio.checked = true; else document.getElementById('editActionNone').checked = true;
+    var metalRadio = document.querySelector('input[name="editMetal"][value="' + metalVal + '"]');
+    if (metalRadio) metalRadio.checked = true; else document.getElementById('editMetalNone').checked = true;
+    var formRadio = document.querySelector('input[name="editForm"][value="' + formVal + '"]');
+    if (formRadio) formRadio.checked = true; else document.getElementById('editFormNone').checked = true;
+    if (d.start) {
+        var s = d.start;
+        document.getElementById('editDatetime').value =
+            s.getFullYear() + '-' + String(s.getMonth()+1).padStart(2,'0') + '-' +
+            String(s.getDate()).padStart(2,'0') + 'T' +
+            String(s.getHours()).padStart(2,'0') + ':' + String(s.getMinutes()).padStart(2,'0');
+    }
+    if (d.end) {
+        var e = d.end;
+        document.getElementById('editEndDatetime').value =
+            e.getFullYear() + '-' + String(e.getMonth()+1).padStart(2,'0') + '-' +
+            String(e.getDate()).padStart(2,'0') + 'T' +
+            String(e.getHours()).padStart(2,'0') + ':' + String(e.getMinutes()).padStart(2,'0');
+    }
+    // Populate inventory fields
+    loadInventoryOptions('editInventoryNeed', d.action, d.metal, d.inventory_need_id);
+    document.getElementById('editQuantity').value = d.quantity || '';
+
+    var actions = '';
+    actions += '<button class="btn btn-primary" onclick="saveEdit()"><i class="bi bi-check-lg"></i> Save Changes</button>';
+    actions += '<button class="btn btn-outline-secondary" onclick="showEventDetail()">Cancel Edit</button>';
+    document.getElementById('eventActions').innerHTML = actions;
+}
+
+function saveEdit() {
+    var body = { id: currentEventId };
+    var name = document.getElementById('editCustomerName').value.trim();
+    var phone = document.getElementById('editPhone').value.trim();
+    var purpose = document.getElementById('editPurpose').value.trim();
+    var notes = document.getElementById('editNotes').value.trim();
+    var dt = document.getElementById('editDatetime').value;
+    var endDt = document.getElementById('editEndDatetime').value;
+    var eActionEl = document.querySelector('input[name="editAction"]:checked');
+    var eMetalEl = document.querySelector('input[name="editMetal"]:checked');
+    var eFormEl = document.querySelector('input[name="editForm"]:checked');
+
+    if (name) body.customer_name = name;
+    body.phone = phone;
+    if (purpose) body.purpose = purpose;
+    body.notes = notes;
+    body.action = eActionEl ? eActionEl.value : '';
+    body.metal = eMetalEl ? eMetalEl.value : '';
+    body.metal_form = eFormEl ? eFormEl.value : '';
+    body.inventory_need_id = document.getElementById('editInventoryNeed').value || null;
+    body.quantity = document.getElementById('editQuantity').value || null;
+    if (dt) body.datetime = new Date(dt).toISOString();
+    if (endDt) body.end_datetime = new Date(endDt).toISOString();
+
+    fetch('/frontdesk/appointments/api/', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify(body)
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+    }).then(function(d) {
+        if (d.status === 'updated') {
+            eventDetailModal.hide();
+            calendar.refetchEvents();
+        }
+    }).catch(function(err) {
+        alert('Failed to save: ' + err.message);
+    });
+}
+
+// ─── Delete Appointment ───
+function deleteAppointment() {
+    if (!confirm('Permanently delete this appointment? This cannot be undone.')) return;
+    fetch('/frontdesk/appointments/api/', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify({ id: currentEventId })
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+    }).then(function(d) {
+        if (d.status === 'deleted') {
+            eventDetailModal.hide();
+            calendar.refetchEvents();
+        }
+    }).catch(function(err) {
+        alert('Failed to delete: ' + err.message);
+    });
+}
+
+// ─── Status Update ───
+function updateStatus(newStatus) {
+    if (!currentEventId) return;
+    fetch('/frontdesk/appointments/api/', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify({ id: currentEventId, status: newStatus })
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+    }).then(function(d) {
+        if (d.status === 'updated') {
+            eventDetailModal.hide();
+            calendar.refetchEvents();
+        }
+    }).catch(function(err) {
+        alert('Failed to update: ' + err.message);
+    });
+}
+
+// ─── Save New Appointment ───
+function saveAppointment() {
+    var customerName = document.getElementById('apptCustomerName').value.trim();
+    var datetimeVal = document.getElementById('apptDatetime').value;
+    var endDatetimeVal = document.getElementById('apptEndDatetime').value;
+    var purpose = document.getElementById('apptPurpose').value.trim();
+    var notes = document.getElementById('apptNotes').value.trim();
+
+    if (!customerName || !datetimeVal || !purpose) {
+        alert('Customer, date/time, and purpose are required.');
+        return;
+    }
+
+    var customerId = '';
+    document.querySelectorAll('#calendarCustomerList option').forEach(function(opt) {
+        if (opt.value.toLowerCase() === customerName.toLowerCase()) {
+            customerId = opt.dataset.id;
+        }
+    });
+
+    var startDt = new Date(datetimeVal);
+    var isoStart = startDt.toISOString();
+    var duration = 30;
+    var isoEnd = '';
+    if (endDatetimeVal) {
+        var endDt = new Date(endDatetimeVal);
+        isoEnd = endDt.toISOString();
+        duration = Math.round((endDt.getTime() - startDt.getTime()) / 60000);
+        if (duration <= 0) duration = 30;
+    }
+
+    var phone = document.getElementById('apptPhone').value.trim();
+    var actionEl = document.querySelector('input[name="apptAction"]:checked');
+    var metalEl = document.querySelector('input[name="apptMetal"]:checked');
+    var formEl = document.querySelector('input[name="apptForm"]:checked');
+    var action = actionEl ? actionEl.value : '';
+    var metal = metalEl ? metalEl.value : '';
+    var metalForm = formEl ? formEl.value : '';
+
+    // Get line items (multiple metals/quantities)
+    var lineItems = getLineItems();
+
+    // If no line items, create one appointment
+    // If multiple line items, create multiple appointments
+    var appointmentsToCreate = [];
+
+    if (lineItems.length === 0) {
+        // No line items - create single appointment without inventory link
+        appointmentsToCreate.push({ inventory_need_id: '', quantity: '', metal: metal });
+    } else {
+        // Create one appointment per line item
+        lineItems.forEach(function(item) {
+            appointmentsToCreate.push({
+                inventory_need_id: item.inventory_need_id,
+                quantity: item.quantity,
+                metal: item.metal || metal
+            });
+        });
+    }
+
+    var createdCount = 0;
+    var errorOccurred = false;
+
+    appointmentsToCreate.forEach(function(apptData, index) {
+        var formData = new FormData();
+        formData.append('customer', customerId);
+        formData.append('customer_name', customerName);
+        if (phone) formData.append('phone', phone);
+        if (action) formData.append('action', action);
+        if (apptData.metal) formData.append('metal', apptData.metal);
+        if (metalForm) formData.append('metal_form', metalForm);
+        if (apptData.inventory_need_id) formData.append('inventory_need_id', apptData.inventory_need_id);
+        if (apptData.quantity) formData.append('quantity', apptData.quantity);
+        formData.append('iso_datetime', isoStart);
+        if (isoEnd) formData.append('iso_end_datetime', isoEnd);
+        // Add index to purpose if multiple items
+        var apptPurpose = purpose;
+        if (appointmentsToCreate.length > 1 && apptData.metal) {
+            apptPurpose = purpose + ' (' + apptData.metal + ')';
+        }
+        formData.append('purpose', apptPurpose);
+        formData.append('duration', duration);
+        if (notes) formData.append('notes', notes);
+
+        fetch('/frontdesk/appointments/create/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrftoken },
+            credentials: 'same-origin',
+            body: formData
+        }).then(function(r) {
+            if (!r.ok) throw new Error('Server error ' + r.status);
+            return r.json();
+        }).then(function(d) {
+            createdCount++;
+            if (d.status !== 'created' && !errorOccurred) {
+                errorOccurred = true;
+                alert('Error: ' + JSON.stringify(d.errors));
+            }
+            // When all done, close and refresh
+            if (createdCount === appointmentsToCreate.length && !errorOccurred) {
+                appointmentModal.hide();
+                calendar.refetchEvents();
+                document.getElementById('appointmentForm').reset();
+                clearLineItems();
+            }
+        }).catch(function(err) {
+            if (!errorOccurred) {
+                errorOccurred = true;
+                alert('Failed to save appointment: ' + err.message);
+            }
+        });
+    });
+}
+
+// ─── Notes ───
+function openNewNote(dateStr) {
+    document.getElementById('noteId').value = '';
+    document.getElementById('noteModalTitle').textContent = 'Add Note';
+    document.getElementById('noteContent').value = '';
+    document.getElementById('noteTime').value = '';
+
+    if (!dateStr) {
+        var plannerDate = document.querySelector('.fc-day-today');
+        var now = new Date();
+        dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    }
+    document.getElementById('noteDate').value = dateStr;
+
+    var footer = document.getElementById('noteActions');
+    footer.innerHTML =
+        '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
+        '<button type="button" class="btn btn-primary" onclick="saveNote()">Save Note</button>';
+
+    noteModal.show();
+    setTimeout(function() { document.getElementById('noteContent').focus(); }, 300);
+}
+
+function saveNote() {
+    var noteId = document.getElementById('noteId').value;
+    var date = document.getElementById('noteDate').value;
+    var time = document.getElementById('noteTime').value;
+    var content = document.getElementById('noteContent').value.trim();
+
+    if (!date || !content) {
+        alert('Date and note content are required.');
+        return;
+    }
+
+    var method = noteId ? 'PUT' : 'POST';
+    var body = { date: date, time: time || null, content: content };
+    if (noteId) body.id = parseInt(noteId);
+
+    fetch('/frontdesk/notes/api/', {
+        method: method,
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+        credentials: 'same-origin',
+        body: JSON.stringify(body)
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Server error ' + r.status);
+        return r.json();
+    }).then(function(d) {
+        if (d.status === 'created' || d.status === 'updated') {
+            noteModal.hide();
+            calendar.refetchEvents();
+        }
+    }).catch(function(err) {
+        alert('Failed to save note: ' + err.message);
+    });
+}
+
+function showNoteDetail(noteId, content, date, time) {
+    var timeStr = time ? ' at ' + time : '';
+    document.getElementById('noteDetailBody').innerHTML =
+        '<p>' + content.replace(/\n/g, '<br>') + '</p>' +
+        '<small class="text-muted">' + date + timeStr + '</small>';
+
+    document.getElementById('noteEditBtn').onclick = function() {
+        noteDetailModal.hide();
+        document.getElementById('noteId').value = noteId;
+        document.getElementById('noteModalTitle').textContent = 'Edit Note';
+        document.getElementById('noteDate').value = date;
+        document.getElementById('noteTime').value = time || '';
+        document.getElementById('noteContent').value = content;
+        var footer = document.getElementById('noteActions');
+        footer.innerHTML =
+            '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
+            '<button type="button" class="btn btn-primary" onclick="saveNote()">Save Note</button>';
+        noteModal.show();
+    };
+
+    document.getElementById('noteDeleteBtn').onclick = function() {
+        if (!confirm('Delete this note?')) return;
+        fetch('/frontdesk/notes/api/', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            credentials: 'same-origin',
+            body: JSON.stringify({ id: noteId })
+        }).then(function(r) {
+            if (!r.ok) throw new Error('Server error ' + r.status);
+            return r.json();
+        }).then(function(d) {
+            if (d.status === 'deleted') {
+                noteDetailModal.hide();
+                calendar.refetchEvents();
+            }
+        }).catch(function(err) {
+            alert('Failed to delete: ' + err.message);
+        });
+    };
+
+    noteDetailModal.show();
+}
+
+// ─── Inventory Functions ───
+function loadInventoryOptions(selectId, customerAction, metal, selectedId) {
+    var select = document.getElementById(selectId);
+    select.innerHTML = '<option value="">-- No Inventory Link --</option>';
+
+    // Build query params
+    var params = new URLSearchParams();
+    if (customerAction) params.set('customer_action', customerAction);
+    if (metal) params.set('metal', metal);
+
+    fetch('/frontdesk/inventory/for-appointment/?' + params.toString(), { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var items = d.items || [];
+            items.forEach(function(item) {
+                var opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.display + ' (' + item.quantity_remaining + ' left)';
+                if (selectedId && parseInt(selectedId) === item.id) opt.selected = true;
+                select.appendChild(opt);
+            });
+        });
+}
+
+// ─── Line Item Management ───
+var lineItemCount = 0;
+
+function addLineItem(prefillData) {
+    lineItemCount++;
+    var idx = lineItemCount;
+    var container = document.getElementById('lineItemsContainer');
+
+    var row = document.createElement('div');
+    row.className = 'row g-2 mb-2 align-items-end line-item-row';
+    row.id = 'lineItem' + idx;
+    row.innerHTML = `
+        <div class="col-3">
+            <label class="form-label small mb-1">Metal</label>
+            <select class="form-select form-select-sm line-metal" onchange="loadLineInventory(${idx})">
+                <option value="">--</option>
+                <option value="GOLD">Gold</option>
+                <option value="SILVER">Silver</option>
+                <option value="PLATINUM">Platinum</option>
+                <option value="PALLADIUM">Palladium</option>
+            </select>
+        </div>
+        <div class="col-4">
+            <label class="form-label small mb-1">Inventory Need</label>
+            <select class="form-select form-select-sm line-inventory" id="lineInv${idx}">
+                <option value="">-- Select --</option>
+            </select>
+        </div>
+        <div class="col-3">
+            <label class="form-label small mb-1">Qty (oz)</label>
+            <input type="number" class="form-control form-control-sm line-qty" min="0.0001" step="0.0001" placeholder="0">
+        </div>
+        <div class="col-2">
+            <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="removeLineItem(${idx})">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    `;
+    container.appendChild(row);
+
+    // Pre-fill if data provided
+    if (prefillData) {
+        var metalSelect = row.querySelector('.line-metal');
+        var qtyInput = row.querySelector('.line-qty');
+        if (prefillData.metal) metalSelect.value = prefillData.metal;
+        if (prefillData.qty) qtyInput.value = prefillData.qty;
+        loadLineInventory(idx);
+    }
+
+    // Auto-load inventory based on current action selection
+    var actionEl = document.querySelector('input[name="apptAction"]:checked');
+    if (actionEl && actionEl.value) {
+        loadLineInventory(idx);
+    }
+}
+
+function removeLineItem(idx) {
+    var row = document.getElementById('lineItem' + idx);
+    if (row) row.remove();
+}
+
+function loadLineInventory(idx) {
+    var row = document.getElementById('lineItem' + idx);
+    if (!row) return;
+
+    var metalSelect = row.querySelector('.line-metal');
+    var invSelect = row.querySelector('.line-inventory');
+    var metal = metalSelect.value;
+
+    var actionEl = document.querySelector('input[name="apptAction"]:checked');
+    var action = actionEl ? actionEl.value : '';
+
+    invSelect.innerHTML = '<option value="">-- Select --</option>';
+
+    var params = new URLSearchParams();
+    if (action) params.set('customer_action', action);
+    if (metal) params.set('metal', metal);
+
+    fetch('/frontdesk/inventory/for-appointment/?' + params.toString(), { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var items = d.items || [];
+            items.forEach(function(item) {
+                var opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.display + ' (' + item.quantity_remaining + ' left)';
+                invSelect.appendChild(opt);
+            });
+        });
+}
+
+function getLineItems() {
+    var items = [];
+    document.querySelectorAll('.line-item-row').forEach(function(row) {
+        var metal = row.querySelector('.line-metal').value;
+        var invId = row.querySelector('.line-inventory').value;
+        var qty = row.querySelector('.line-qty').value;
+        if (metal || invId || qty) {
+            items.push({ metal: metal, inventory_need_id: invId, quantity: qty });
+        }
+    });
+    return items;
+}
+
+function clearLineItems() {
+    document.getElementById('lineItemsContainer').innerHTML = '';
+    lineItemCount = 0;
+}
+
+function onInventorySelect() {
+    // When action changes, reload all line item inventories
+    document.querySelectorAll('.line-item-row').forEach(function(row) {
+        var idx = row.id.replace('lineItem', '');
+        loadLineInventory(parseInt(idx));
+    });
+}
+
+// Reload inventory options when action/metal changes in new appointment form
+document.querySelectorAll('input[name="apptAction"]').forEach(function(el) {
+    el.addEventListener('change', onInventorySelect);
+});
+document.querySelectorAll('input[name="apptMetal"]').forEach(function(el) {
+    el.addEventListener('change', onInventorySelect);
+});
+
+// ─── Auto-refresh Polling ───
+function startCalendarPolling() {
+    // Poll every 10 seconds for changes
+    pollInterval = setInterval(checkForUpdates, 10000);
+    // Also update hash initially
+    updateEventHash();
+}
+
+function updateEventHash() {
+    // Create a simple hash of current appointments for comparison
+    fetch('/frontdesk/appointments/api/', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(events) {
+            lastEventHash = generateHash(events);
+        });
+}
+
+function generateHash(events) {
+    // Create a string representation of event data for comparison
+    var sortedEvents = events.sort(function(a, b) { return a.id - b.id; });
+    var str = sortedEvents.map(function(e) {
+        return e.id + ':' + e.start + ':' + e.end + ':' + (e.extendedProps ? e.extendedProps.status : '') + ':' + e.title;
+    }).join('|');
+    // Simple string hash
+    var hash = 0;
+    for (var i = 0; i < str.length; i++) {
+        var char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return hash.toString();
+}
+
+function checkForUpdates() {
+    // Don't poll if a modal is open (user is editing)
+    var appointmentModal = document.getElementById('appointmentModal');
+    var eventDetailModal = document.getElementById('eventDetailModal');
+    var noteModal = document.getElementById('noteModal');
+
+    if (appointmentModal.classList.contains('show') ||
+        eventDetailModal.classList.contains('show') ||
+        noteModal.classList.contains('show')) {
+        return;
+    }
+
+    fetch('/frontdesk/appointments/api/', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(events) {
+            var newHash = generateHash(events);
+            if (newHash !== lastEventHash) {
+                lastEventHash = newHash;
+                // Refetch events - this keeps the current view position
+                calendar.refetchEvents();
+            }
+        })
+        .catch(function(err) {
+            // Silently ignore polling errors (network issues, etc.)
+        });
+}
+
+// Stop polling when page is hidden, resume when visible
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+        }
+    } else {
+        if (!pollInterval) {
+            checkForUpdates(); // Check immediately when returning
+            pollInterval = setInterval(checkForUpdates, 10000);
+        }
+    }
+});
+</script>
+{% endblock %}

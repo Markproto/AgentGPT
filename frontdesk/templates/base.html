@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}J. Austin Front Desk{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+    <style>
+        :root { --sidebar-width: 250px; }
+        body { min-height: 100vh; }
+        .sidebar {
+            width: var(--sidebar-width);
+            min-height: 100vh;
+            background: #1a1a2e;
+            position: fixed;
+            top: 0; left: 0;
+            z-index: 1000;
+            transition: transform 0.3s;
+        }
+        .sidebar .nav-link { color: #adb5bd; padding: 0.75rem 1.25rem; border-radius: 0; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+        .sidebar .nav-link i { width: 24px; text-align: center; margin-right: 8px; }
+        .sidebar-brand { padding: 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-brand h5 { color: #ffc107; margin: 0; font-weight: 700; }
+        .sidebar-brand small { color: #6c757d; }
+        .main-content { margin-left: var(--sidebar-width); padding: 0; min-height: 100vh; }
+        .topbar { background: #fff; border-bottom: 1px solid #dee2e6; padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+        .content-area { padding: 1.5rem; }
+        .stat-card { border: none; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .stat-card .card-body { padding: 1.25rem; }
+        .stat-card .stat-value { font-size: 2rem; font-weight: 700; }
+        .stat-card .stat-label { color: #6c757d; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .badge-pending { background: #ffc107; color: #000; }
+        .badge-matched { background: #0d6efd; }
+        .badge-closed { background: #6c757d; }
+        .badge-active { background: #198754; }
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.show { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+        }
+        /* High Command Alert System */
+        .hc-trigger {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 2000;
+            width: 40px;
+            height: 40px;
+            background: #dc3545;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(220,53,69,0.4);
+        }
+        .hc-trigger:hover { background: #c82333; }
+        .hc-alert-bar {
+            position: fixed;
+            top: 0;
+            left: var(--sidebar-width);
+            right: 0;
+            z-index: 1999;
+            background: linear-gradient(90deg, #dc3545, #ff6b6b, #dc3545);
+            background-size: 200% 100%;
+            color: white;
+            padding: 12px 20px;
+            text-align: center;
+            font-weight: 600;
+            cursor: pointer;
+            animation: hc-flash 1s infinite, hc-gradient 2s infinite;
+            box-shadow: 0 4px 12px rgba(220,53,69,0.5);
+        }
+        @keyframes hc-flash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        @keyframes hc-gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .hc-alert-bar .hc-icon { margin-right: 10px; font-size: 1.2rem; }
+        .hc-alert-bar:hover { filter: brightness(1.1); }
+        @media (max-width: 768px) {
+            .hc-alert-bar { left: 0; }
+        }
+    </style>
+</head>
+<body>
+    <!-- High Command Alert Bar (hidden by default) -->
+    <div class="hc-alert-bar" id="hcAlertBar" style="display:none;" onclick="openHcRespond()">
+        <i class="bi bi-broadcast hc-icon"></i>
+        <span id="hcAlertText">Message from High Command</span>
+        <span class="ms-3 badge bg-light text-dark">Click to respond</span>
+    </div>
+
+    <!-- High Command Trigger Button -->
+    <button class="hc-trigger" id="hcTrigger" onclick="openHcSend()" title="High Command">
+        <i class="bi bi-broadcast"></i>
+    </button>
+
+    <!-- High Command Send Modal -->
+    <div class="modal fade" id="hcSendModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-danger">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="bi bi-broadcast"></i> Send High Command Message</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Your Name</label>
+                        <input type="text" id="hcSenderName" class="form-control" placeholder="Enter your name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Message</label>
+                        <textarea id="hcMessage" class="form-control" rows="3" placeholder="Type your message to all screens..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" id="hcPassword" class="form-control" placeholder="Enter High Command password">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" onclick="sendHcMessage()">
+                        <i class="bi bi-send"></i> Broadcast Message
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- High Command Respond Modal -->
+    <div class="modal fade" id="hcRespondModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-danger">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="bi bi-broadcast"></i> Message from High Command</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <strong>From:</strong> <span id="hcFromName">High Command</span><br>
+                        <strong>Message:</strong><br>
+                        <span id="hcMessageText" class="fs-5"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Your Name</label>
+                        <input type="text" id="hcResponderName" class="form-control" placeholder="Enter your name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Your Response</label>
+                        <textarea id="hcResponse" class="form-control" rows="3" placeholder="Type your response..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success" onclick="respondToHc()">
+                        <i class="bi bi-reply"></i> Send Response
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <h5><i class="bi bi-building"></i> J. Austin</h5>
+            <small>Front Desk Processing</small>
+        </div>
+        <ul class="nav flex-column mt-3">
+            <li class="nav-item">
+                <a class="nav-link {% if request.path == '/frontdesk/' %}active{% endif %}" href="/frontdesk/">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'customers' in request.path %}active{% endif %}" href="/frontdesk/customers/">
+                    <i class="bi bi-people"></i> Customers
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'matching' in request.path %}active{% endif %}" href="/frontdesk/matching/">
+                    <i class="bi bi-arrow-left-right"></i> Matching
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'appointments' in request.path %}active{% endif %}" href="/frontdesk/appointments/">
+                    <i class="bi bi-calendar-check"></i> Appointments
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'calendar' in request.path %}active{% endif %}" href="/frontdesk/calendar/">
+                    <i class="bi bi-calendar3"></i> Calendar
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'texting' in request.path %}active{% endif %}" href="/frontdesk/texting/">
+                    <i class="bi bi-chat-dots"></i> Texting
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'calls' in request.path %}active{% endif %}" href="/frontdesk/calls/">
+                    <i class="bi bi-telephone"></i> Call Log
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'inventory' in request.path %}active{% endif %}" href="/frontdesk/inventory/">
+                    <i class="bi bi-box-seam"></i> Inventory
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'spread' in request.path %}active{% endif %}" href="/frontdesk/spread/">
+                    <i class="bi bi-graph-up-arrow"></i> Spread
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'templates' in request.path %}active{% endif %}" href="/frontdesk/texting/templates/">
+                    <i class="bi bi-file-text"></i> Templates
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'import' in request.path or 'export' in request.path %}active{% endif %}" href="/frontdesk/import/">
+                    <i class="bi bi-cloud-upload"></i> Import/Export
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'guide' in request.path %}active{% endif %}" href="/frontdesk/guide/">
+                    <i class="bi bi-book"></i> Integration Guide
+                </a>
+            </li>
+            <li class="nav-item mt-4">
+                <a class="nav-link text-warning" href="/chat">
+                    <i class="bi bi-box-arrow-left"></i> Back to Onyx
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link text-danger" href="/frontdesk/logout/">
+                    <i class="bi bi-door-open"></i> Logout
+                </a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="topbar">
+            <div>
+                <button class="btn btn-link d-md-none" onclick="document.getElementById('sidebar').classList.toggle('show')">
+                    <i class="bi bi-list fs-4"></i>
+                </button>
+                <strong>{% block page_title %}Dashboard{% endblock %}</strong>
+            </div>
+            <div>
+                <span class="text-muted me-3"><i class="bi bi-person"></i> {{ request.user.username }}</span>
+            </div>
+        </div>
+        <div class="content-area">
+            {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // CSRF token helper for AJAX
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const csrftoken = getCookie('csrftoken');
+
+        // High Command Alert System
+        let hcSendModal, hcRespondModal, currentHcMessageId = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            hcSendModal = new bootstrap.Modal(document.getElementById('hcSendModal'));
+            hcRespondModal = new bootstrap.Modal(document.getElementById('hcRespondModal'));
+            checkHighCommand();
+            setInterval(checkHighCommand, 5000); // Poll every 5 seconds
+        });
+
+        function checkHighCommand() {
+            fetch('/frontdesk/api/highcommand/')
+                .then(r => r.json())
+                .then(data => {
+                    const bar = document.getElementById('hcAlertBar');
+                    if (data.has_message) {
+                        currentHcMessageId = data.id;
+                        document.getElementById('hcAlertText').textContent = data.message;
+                        document.getElementById('hcFromName').textContent = data.sender;
+                        document.getElementById('hcMessageText').textContent = data.message;
+                        bar.style.display = 'block';
+                        document.querySelector('.main-content').style.marginTop = '50px';
+                    } else {
+                        bar.style.display = 'none';
+                        document.querySelector('.main-content').style.marginTop = '0';
+                        currentHcMessageId = null;
+                    }
+                })
+                .catch(err => console.error('HC check failed:', err));
+        }
+
+        function openHcSend() {
+            document.getElementById('hcSenderName').value = '';
+            document.getElementById('hcMessage').value = '';
+            document.getElementById('hcPassword').value = '';
+            hcSendModal.show();
+        }
+
+        function openHcRespond() {
+            document.getElementById('hcResponderName').value = '';
+            document.getElementById('hcResponse').value = '';
+            hcRespondModal.show();
+        }
+
+        function sendHcMessage() {
+            const sender = document.getElementById('hcSenderName').value.trim();
+            const message = document.getElementById('hcMessage').value.trim();
+            const password = document.getElementById('hcPassword').value;
+
+            if (!sender || !message || !password) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            fetch('/frontdesk/api/highcommand/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'send', sender, message, password })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    hcSendModal.hide();
+                    checkHighCommand();
+                }
+            })
+            .catch(err => alert('Failed to send: ' + err));
+        }
+
+        function respondToHc() {
+            const responder = document.getElementById('hcResponderName').value.trim();
+            const response = document.getElementById('hcResponse').value.trim();
+
+            if (!responder || !response) {
+                alert('Please enter your name and response');
+                return;
+            }
+
+            fetch('/frontdesk/api/highcommand/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'respond', id: currentHcMessageId, responder, response })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    hcRespondModal.hide();
+                    checkHighCommand();
+                }
+            })
+            .catch(err => alert('Failed to respond: ' + err));
+        }
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

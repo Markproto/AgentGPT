@@ -1,0 +1,65 @@
+services:
+  frontdesk-web:
+    build: .
+    container_name: frontdesk-web
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      TWILIO_ACCOUNT_SID: ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+      TWILIO_AUTH_TOKEN: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+      TWILIO_PHONE: "+1XXXXXXXXXX"
+    depends_on:
+      frontdesk-db:
+        condition: service_healthy
+      frontdesk-redis:
+        condition: service_started
+    volumes:
+      - ./staticfiles:/app/staticfiles
+
+  frontdesk-db:
+    image: postgres:15-alpine
+    container_name: frontdesk-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${FRONTDESK_DB_NAME:-frontdesk}
+      POSTGRES_USER: ${FRONTDESK_DB_USER:-frontdesk}
+      POSTGRES_PASSWORD: ${FRONTDESK_DB_PASSWORD:-frontdesk_secret}
+    volumes:
+      - frontdesk_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${FRONTDESK_DB_USER:-frontdesk}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  frontdesk-redis:
+    image: redis:7-alpine
+    container_name: frontdesk-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+
+  frontdesk-celery:
+    build: .
+    container_name: frontdesk-celery
+    restart: unless-stopped
+    command: celery -A frontdesk worker -l info
+    env_file:
+      - .env
+    environment:
+      TWILIO_ACCOUNT_SID: ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+      TWILIO_AUTH_TOKEN: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+      TWILIO_PHONE: "+1XXXXXXXXXX"
+    depends_on:
+      frontdesk-db:
+        condition: service_healthy
+      frontdesk-redis:
+        condition: service_started
+
+volumes:
+  frontdesk_pgdata:

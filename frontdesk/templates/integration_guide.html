@@ -1,0 +1,775 @@
+{% extends "base.html" %}
+{% block title %}Integration Guide - J. Austin Front Desk{% endblock %}
+{% block page_title %}Integration Guide{% endblock %}
+
+{% block extra_css %}
+<style>
+.guide-section { margin-bottom: 2.5rem; }
+.guide-section h3 {
+    color: #1a1a2e; border-bottom: 3px solid #ffc107; padding-bottom: 0.5rem; margin-bottom: 1.25rem;
+}
+.step-number {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: #ffc107; color: #000; font-weight: 700; margin-right: 0.5rem; font-size: 0.9rem;
+}
+.code-block {
+    background: #1e1e2e; color: #cdd6f4; padding: 1rem 1.25rem; border-radius: 8px;
+    font-family: 'Courier New', monospace; font-size: 0.88rem;
+    overflow-x: auto; margin: 0.5rem 0 1rem; line-height: 1.6;
+}
+.code-block .hl { color: #f9e2af; }
+.code-block .val { color: #a6e3a1; }
+.code-block .cmt { color: #6c7086; }
+.tip-box {
+    background: #fff3cd; border-left: 4px solid #ffc107;
+    padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; margin: 1rem 0;
+}
+.warn-box {
+    background: #f8d7da; border-left: 4px solid #dc3545;
+    padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; margin: 1rem 0;
+}
+.ok-box {
+    background: #d1e7dd; border-left: 4px solid #198754;
+    padding: 0.75rem 1rem; border-radius: 0 6px 6px 0; margin: 1rem 0;
+}
+.toc-card .nav-link { color: #1a1a2e; padding: 0.35rem 0.75rem; font-size: 0.9rem; border-radius: 4px; }
+.toc-card .nav-link:hover { background: #f0f0f0; }
+.toc-card .nav-link.section-head { font-weight: 700; color: #ffc107; background: #1a1a2e; margin-top: 0.5rem; }
+.badge-feature { font-size: 0.75rem; padding: 0.3rem 0.6rem; }
+.guide-img-placeholder {
+    background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px;
+    padding: 2rem; text-align: center; color: #6c757d; margin: 1rem 0;
+}
+/* Print styles */
+@media print {
+    .sidebar, .topbar, .no-print, .toc-card { display: none !important; }
+    .main-content { margin-left: 0 !important; }
+    .content-area { padding: 0 !important; }
+    .guide-section { page-break-inside: avoid; }
+    .code-block { background: #f5f5f5 !important; color: #000 !important; border: 1px solid #ccc; }
+    .code-block .hl, .code-block .val, .code-block .cmt { color: #000 !important; }
+    a { color: #000 !important; text-decoration: underline !important; }
+    .card { border: 1px solid #ccc !important; box-shadow: none !important; }
+    h3 { border-bottom-color: #000 !important; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Print / PDF Button -->
+<div class="d-flex justify-content-between align-items-center mb-4 no-print">
+    <div>
+        <h4 class="mb-0">J. Austin Front Desk &mdash; Complete Staff Guide</h4>
+        <small class="text-muted">Twilio SMS, Calendar, Customers &amp; Daily Operations</small>
+    </div>
+    <button class="btn btn-outline-dark" onclick="window.print()">
+        <i class="bi bi-printer"></i> Print / Save as PDF
+    </button>
+</div>
+
+<div class="row">
+    <!-- Table of Contents (Sidebar) -->
+    <div class="col-lg-3 mb-3 no-print">
+        <div class="card toc-card" style="position: sticky; top: 1rem;">
+            <div class="card-header bg-dark text-white py-2">
+                <i class="bi bi-list-nested"></i> <strong>Contents</strong>
+            </div>
+            <div class="card-body p-2">
+                <nav class="nav flex-column">
+                    <a class="nav-link section-head" href="#sec-overview">Overview</a>
+                    <a class="nav-link section-head" href="#sec-twilio">Twilio SMS Setup</a>
+                    <a class="nav-link" href="#twilio-account">Account &amp; Credentials</a>
+                    <a class="nav-link" href="#twilio-server">Server Configuration</a>
+                    <a class="nav-link" href="#twilio-webhook">Webhook Setup</a>
+                    <a class="nav-link" href="#twilio-sending">Sending Texts</a>
+                    <a class="nav-link" href="#twilio-receiving">Receiving Texts</a>
+                    <a class="nav-link" href="#twilio-conversations">Conversations</a>
+                    <a class="nav-link" href="#twilio-templates">Message Templates</a>
+                    <a class="nav-link section-head" href="#sec-calendar">Calendar</a>
+                    <a class="nav-link" href="#cal-views">Views &amp; Navigation</a>
+                    <a class="nav-link" href="#cal-appointments">Creating Appointments</a>
+                    <a class="nav-link" href="#cal-fast-entry">Fast Entry (Keyboard)</a>
+                    <a class="nav-link" href="#cal-managing">Managing Appointments</a>
+                    <a class="nav-link" href="#cal-statuses">Status Workflow</a>
+                    <a class="nav-link" href="#cal-notes">Day Notes</a>
+                    <a class="nav-link" href="#cal-categories">Customer Categories</a>
+                    <a class="nav-link section-head" href="#sec-customers">Customers</a>
+                    <a class="nav-link" href="#cust-spreadsheet">Spreadsheet View</a>
+                    <a class="nav-link" href="#cust-import">Import / Export</a>
+                    <a class="nav-link section-head" href="#sec-calls">Call Log</a>
+                    <a class="nav-link section-head" href="#sec-troubleshoot">Troubleshooting</a>
+                    <a class="nav-link section-head" href="#sec-reference">Quick Reference</a>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Guide Content -->
+    <div class="col-lg-9">
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- OVERVIEW                                 -->
+        <!-- ════════════════════════════════════════ -->
+        <div class="guide-section" id="sec-overview">
+            <h3><i class="bi bi-building"></i> Overview</h3>
+            <p>The <strong>J. Austin Front Desk Processing</strong> system is a CRM built for bullion and scrap metal businesses. It helps you manage walk-in customers, schedule appointments, send text messages, log calls, and match buyers with sellers.</p>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-3 col-6">
+                    <div class="card h-100 text-center border-primary">
+                        <div class="card-body py-3">
+                            <i class="bi bi-calendar3 text-primary" style="font-size:1.8rem;"></i>
+                            <h6 class="mt-2 mb-0">Calendar</h6>
+                            <small class="text-muted">Appointments &amp; Notes</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="card h-100 text-center border-success">
+                        <div class="card-body py-3">
+                            <i class="bi bi-chat-dots text-success" style="font-size:1.8rem;"></i>
+                            <h6 class="mt-2 mb-0">Texting</h6>
+                            <small class="text-muted">SMS via Twilio</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="card h-100 text-center border-warning">
+                        <div class="card-body py-3">
+                            <i class="bi bi-people text-warning" style="font-size:1.8rem;"></i>
+                            <h6 class="mt-2 mb-0">Customers</h6>
+                            <small class="text-muted">Spreadsheet &amp; Import</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="card h-100 text-center border-info">
+                        <div class="card-body py-3">
+                            <i class="bi bi-telephone text-info" style="font-size:1.8rem;"></i>
+                            <h6 class="mt-2 mb-0">Call Log</h6>
+                            <small class="text-muted">AI Front Desk</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <p>Use the sidebar to navigate between pages. This guide covers everything your staff needs to operate the system day-to-day.</p>
+        </div>
+
+        <hr>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- TWILIO SMS SETUP                         -->
+        <!-- ════════════════════════════════════════ -->
+        <div class="guide-section" id="sec-twilio">
+            <h3><i class="bi bi-chat-dots"></i> Twilio SMS Setup</h3>
+            <p>The texting system uses <strong>Twilio</strong> to send and receive SMS messages. This section covers setup for the administrator and daily usage for staff.</p>
+        </div>
+
+        <!-- Twilio Account -->
+        <div class="guide-section" id="twilio-account">
+            <h5><span class="step-number">1</span> Twilio Account &amp; Credentials <span class="badge bg-secondary badge-feature">Admin Only</span></h5>
+            <ol>
+                <li>Create a Twilio account at <strong>twilio.com</strong></li>
+                <li>Buy a phone number with <strong>SMS capability</strong> (Phone Numbers &rarr; Buy a Number)</li>
+                <li>Find your credentials on the Twilio Console dashboard:</li>
+            </ol>
+            <table class="table table-bordered table-sm">
+                <thead class="table-light"><tr><th>Credential</th><th>Starts With</th><th>Where to Find</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Account SID</strong></td><td><code>AC</code></td><td>Dashboard &mdash; top of page</td></tr>
+                    <tr><td><strong>Auth Token</strong></td><td>(click "Show")</td><td>Dashboard &mdash; next to Account SID</td></tr>
+                    <tr><td><strong>Phone Number</strong></td><td><code>+1</code></td><td>Phone Numbers &rarr; Active Numbers</td></tr>
+                </tbody>
+            </table>
+            <div class="tip-box">
+                <strong><i class="bi bi-lightbulb"></i></strong> You only need the <strong>Account SID</strong> (starts with AC) and <strong>Auth Token</strong>. If you also generated API Keys (SK...) or a Messaging Service SID (VA...), those are <em>not needed</em> for this setup.
+            </div>
+        </div>
+
+        <!-- Server Config -->
+        <div class="guide-section" id="twilio-server">
+            <h5><span class="step-number">2</span> Server Configuration <span class="badge bg-secondary badge-feature">Admin Only</span></h5>
+            <p>Add your Twilio credentials to the <code>.env</code> file on the server. Docker loads this automatically.</p>
+            <div class="code-block">
+                <span class="cmt"># SSH into your server, then edit the environment file:</span><br>
+                nano /opt/frontdesk/.env<br><br>
+                <span class="cmt"># Add these three lines (replace with your real values):</span><br>
+                <span class="hl">TWILIO_ACCOUNT_SID</span>=<span class="val">ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</span><br>
+                <span class="hl">TWILIO_AUTH_TOKEN</span>=<span class="val">your_auth_token_here</span><br>
+                <span class="hl">TWILIO_PHONE</span>=<span class="val">+12065551234</span>
+            </div>
+            <p>After saving, restart the containers:</p>
+            <div class="code-block">
+                cd /opt/frontdesk<br>
+                docker compose down && docker compose up -d
+            </div>
+            <div class="warn-box">
+                <strong><i class="bi bi-exclamation-triangle"></i></strong> Never commit the <code>.env</code> file to git. It contains secrets.
+            </div>
+        </div>
+
+        <!-- Webhook Config -->
+        <div class="guide-section" id="twilio-webhook">
+            <h5><span class="step-number">3</span> Webhook Configuration (Receive Incoming Texts) <span class="badge bg-secondary badge-feature">Admin Only</span></h5>
+            <p>For the system to receive incoming text messages, Twilio needs to know where to forward them.</p>
+            <ol>
+                <li>In Twilio Console: <strong>Phone Numbers</strong> &rarr; <strong>Manage</strong> &rarr; <strong>Active Numbers</strong></li>
+                <li>Click your phone number</li>
+                <li>Scroll down to the <strong>Messaging</strong> section (NOT the Voice section)</li>
+                <li>Under <strong>"A message comes in"</strong>, set:
+                    <table class="table table-sm table-bordered mt-2 mb-2" style="max-width:500px;">
+                        <tr><td class="text-muted" style="width:130px;">Webhook URL</td><td><code>https://agent.opentruthai.com/frontdesk/sms/webhook/</code></td></tr>
+                        <tr><td class="text-muted">Method</td><td><code>HTTP POST</code></td></tr>
+                    </table>
+                </li>
+                <li>Click <strong>Save configuration</strong></li>
+            </ol>
+            <div class="warn-box">
+                <strong><i class="bi bi-exclamation-triangle"></i> Common mistake:</strong> The webhook must be set under the <strong>Messaging</strong> section, NOT the "Voice &amp; Fax" section. They look similar but are different sections on the same page. If you set it under Voice, incoming texts will not work.
+            </div>
+            <div class="ok-box">
+                <strong><i class="bi bi-check-circle"></i> When configured correctly:</strong> When someone texts your Twilio number, the message appears automatically in the Recent Messages panel and in the customer's conversation thread.
+            </div>
+        </div>
+
+        <hr>
+
+        <!-- Sending Texts -->
+        <div class="guide-section" id="twilio-sending">
+            <h5><i class="bi bi-send"></i> Sending Text Messages <span class="badge bg-primary badge-feature">Daily Use</span></h5>
+            <ol>
+                <li>Go to <strong><a href="{% url 'texting' %}">Texting</a></strong> in the sidebar</li>
+                <li><strong>Filter recipients</strong> using the Quick Filter dropdowns:
+                    <ul>
+                        <li><strong>Action</strong> &mdash; Buying or Selling</li>
+                        <li><strong>Metal</strong> &mdash; Gold, Silver, Platinum, Palladium</li>
+                        <li><strong>Form</strong> &mdash; Bullion, Scrap, Other</li>
+                    </ul>
+                </li>
+                <li><strong>Select recipients</strong> &mdash; hold <kbd>Ctrl</kbd> (or <kbd>Cmd</kbd> on Mac) to pick multiple, or click <strong>"Select All Recipients"</strong></li>
+                <li><strong>Choose a template</strong> (optional) from the Template dropdown, or type your own message</li>
+                <li>Click <strong>Send Message</strong></li>
+                <li>A popup confirms how many sent, plus any errors (e.g., missing phone numbers)</li>
+            </ol>
+            <div class="tip-box">
+                <strong><i class="bi bi-lightbulb"></i></strong> Standard SMS is 160 characters per segment. The character counter below the message box tracks your length. Messages over 160 chars still send but count as multiple SMS segments on your Twilio bill.
+            </div>
+            <div class="tip-box">
+                <strong><i class="bi bi-lightbulb"></i></strong> Every sent message is recorded as an interaction on the customer's record, even if the Twilio API fails. You always have an audit trail.
+            </div>
+        </div>
+
+        <!-- Receiving Texts -->
+        <div class="guide-section" id="twilio-receiving">
+            <h5><i class="bi bi-inbox"></i> Receiving Text Messages <span class="badge bg-primary badge-feature">Automatic</span></h5>
+            <p>Once the webhook is set up (Step 3), incoming texts are handled automatically:</p>
+            <ol>
+                <li>Customer texts your Twilio phone number</li>
+                <li>Twilio forwards the message to Front Desk</li>
+                <li>System matches the sender's phone number to an existing customer</li>
+                <li>If no match found, a new customer record is created as <strong>"Unknown (+1XXXXXXXXXX)"</strong></li>
+                <li>The message is saved and appears in:
+                    <ul>
+                        <li><strong>Recent Messages</strong> panel on the Texting page</li>
+                        <li>The customer's <strong>Conversation</strong> thread</li>
+                    </ul>
+                </li>
+            </ol>
+            <div class="tip-box">
+                <strong><i class="bi bi-lightbulb"></i></strong> No auto-reply is sent. You decide when and how to respond from the Texting page or Conversation view.
+            </div>
+        </div>
+
+        <!-- Conversations -->
+        <div class="guide-section" id="twilio-conversations">
+            <h5><i class="bi bi-chat-left-text"></i> Conversation Threads <span class="badge bg-primary badge-feature">Daily Use</span></h5>
+            <p>Each customer has a chat-style thread showing all texts (sent and received) in order.</p>
+            <h6>How to access:</h6>
+            <ul>
+                <li>From the <strong>Texting</strong> page &rarr; click the <i class="bi bi-chat-left-text"></i> icon next to any recent message</li>
+            </ul>
+            <h6>Quick Reply:</h6>
+            <p>Type a message in the text box at the bottom and hit <strong>Send</strong>. The reply goes out via Twilio and appears in the thread immediately.</p>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="p-3 rounded" style="background:#f0f2f5;">
+                        <div class="d-flex justify-content-start mb-2">
+                            <div style="background:#fff;border:1px solid #e0e0e0;padding:0.5rem 0.75rem;border-radius:18px;border-bottom-left-radius:4px;max-width:80%;">
+                                <small>Hi, do you have any gold eagles?</small>
+                                <div style="font-size:0.65rem;color:#999;">Jan 15, 2:30 PM</div>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-end">
+                            <div style="background:#0d6efd;color:#fff;padding:0.5rem 0.75rem;border-radius:18px;border-bottom-right-radius:4px;max-width:80%;">
+                                <small>Yes! 1oz Gold Eagles at spot + $65. Come by before 5!</small>
+                                <div style="font-size:0.65rem;opacity:0.7;text-align:right;">Jan 15, 2:45 PM <i class="bi bi-check2-all"></i></div>
+                            </div>
+                        </div>
+                    </div>
+                    <small class="text-muted d-block text-center mt-1">Example conversation thread</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Templates -->
+        <div class="guide-section" id="twilio-templates">
+            <h5><i class="bi bi-file-text"></i> Message Templates <span class="badge bg-primary badge-feature">Daily Use</span></h5>
+            <p>Save reusable messages so you don't have to re-type common messages.</p>
+            <p><strong>Manage templates:</strong> Go to <a href="{% url 'template_manage' %}">Templates</a> in the sidebar to create, edit, or delete.</p>
+            <table class="table table-bordered table-sm">
+                <thead class="table-light"><tr><th>Category</th><th>Best Used For</th></tr></thead>
+                <tbody>
+                    <tr><td>General</td><td>Welcome messages, store hours, general info</td></tr>
+                    <tr><td>Appointment</td><td>Reminders, confirmations, reschedules</td></tr>
+                    <tr><td>Pricing</td><td>Spot price alerts, deal notifications</td></tr>
+                    <tr><td>Matching</td><td>Buyer/seller match notifications</td></tr>
+                </tbody>
+            </table>
+            <p><strong>To use a template:</strong> On the Texting page, select it from the Template dropdown. The message area fills in. You can edit before sending.</p>
+        </div>
+
+        <hr>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- CALENDAR                                 -->
+        <!-- ════════════════════════════════════════ -->
+        <div class="guide-section" id="sec-calendar">
+            <h3><i class="bi bi-calendar3"></i> Calendar</h3>
+            <p>The calendar is the main daily workspace. It shows all appointments and notes for the day, week, or month. Access it from <a href="{% url 'calendar' %}"><strong>Calendar</strong></a> in the sidebar.</p>
+        </div>
+
+        <!-- Calendar Views -->
+        <div class="guide-section" id="cal-views">
+            <h5><i class="bi bi-layout-three-columns"></i> Views &amp; Navigation</h5>
+            <p>The calendar opens to <strong>Today's Day View</strong> by default. Use the buttons in the top-right to switch views:</p>
+            <table class="table table-bordered table-sm">
+                <thead class="table-light"><tr><th>View</th><th>Shows</th><th>Best For</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Day</strong></td><td>Single day, 6 AM &ndash; 8 PM in 15-min slots</td><td>Daily operations, seeing who's coming in today</td></tr>
+                    <tr><td><strong>Week</strong></td><td>7-day grid with time slots</td><td>Planning the week ahead</td></tr>
+                    <tr><td><strong>Month</strong></td><td>Traditional month grid</td><td>Overview of busy/quiet periods</td></tr>
+                </tbody>
+            </table>
+            <p>Use <strong>&lt; &gt;</strong> arrows to go forward/back. Click <strong>Today</strong> to jump to the current date.</p>
+        </div>
+
+        <!-- Creating Appointments -->
+        <div class="guide-section" id="cal-appointments">
+            <h5><i class="bi bi-plus-circle"></i> Creating Appointments</h5>
+            <p>There are two ways to create an appointment:</p>
+            <h6>Method 1: Click a time slot</h6>
+            <ol>
+                <li>In Day or Week view, click (or click-and-drag) on a time slot</li>
+                <li>The <strong>New Appointment</strong> form opens with the time pre-filled</li>
+                <li>Fill in the fields (see below) and click <strong>Save Appointment</strong></li>
+            </ol>
+            <h6>Method 2: Click on a date in Month view</h6>
+            <ol>
+                <li>Click any date cell in the month view</li>
+                <li>The form opens with that date selected</li>
+            </ol>
+
+            <h6 class="mt-3">Appointment Fields:</h6>
+            <table class="table table-bordered table-sm">
+                <thead class="table-light"><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Customer</strong></td><td>Yes</td><td>Type a name. Existing customers appear in a dropdown. New names are automatically created as new customers.</td></tr>
+                    <tr><td><strong>Phone</strong></td><td>No</td><td>Customer phone number. Saved to the customer record.</td></tr>
+                    <tr><td><strong>Date &amp; Time</strong></td><td>Yes</td><td>Start time (auto-filled when you click a slot)</td></tr>
+                    <tr><td><strong>End Time</strong></td><td>No</td><td>If blank, defaults to 30 minutes after start</td></tr>
+                    <tr><td><strong>Purpose</strong></td><td>Yes</td><td>Why they're coming in (e.g., "Buy 10oz Gold Bullion")</td></tr>
+                    <tr><td><strong>Notes</strong></td><td>No</td><td>Any extra info (e.g., "Repeat customer, prefers cash")</td></tr>
+                    <tr><td><strong>Action</strong></td><td>No</td><td>Buying or Selling</td></tr>
+                    <tr><td><strong>Metal</strong></td><td>No</td><td>Gold, Silver, Platinum, or Palladium</td></tr>
+                    <tr><td><strong>Form</strong></td><td>No</td><td>Bullion, Scrap, or Other</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Fast Entry -->
+        <div class="guide-section" id="cal-fast-entry">
+            <h5><i class="bi bi-keyboard"></i> Fast Entry (Keyboard Shortcuts)</h5>
+            <p>For quick data entry when the phone is ringing, use the Tab key to fly through the form:</p>
+            <div class="card bg-light">
+                <div class="card-body py-2">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <span class="badge bg-primary">Customer Name</span>
+                        <i class="bi bi-arrow-right"></i>
+                        <kbd>Tab</kbd>
+                        <i class="bi bi-arrow-right"></i>
+                        <span class="badge bg-primary">Phone</span>
+                        <i class="bi bi-arrow-right"></i>
+                        <kbd>Tab</kbd>
+                        <i class="bi bi-arrow-right"></i>
+                        <span class="badge bg-primary">Purpose</span>
+                        <i class="bi bi-arrow-right"></i>
+                        <kbd>Tab</kbd>
+                        <i class="bi bi-arrow-right"></i>
+                        <span class="badge bg-primary">Notes</span>
+                        <i class="bi bi-arrow-right"></i>
+                        <kbd>Enter</kbd>
+                        <i class="bi bi-arrow-right"></i>
+                        <span class="badge bg-success">Saved!</span>
+                    </div>
+                </div>
+            </div>
+            <div class="tip-box">
+                <strong><i class="bi bi-lightbulb"></i></strong> You can press <kbd>Enter</kbd> from <em>any</em> field to immediately save the appointment. This makes it fast to book while on the phone: click a time slot &rarr; type name &rarr; Tab &rarr; type phone &rarr; Tab &rarr; type purpose &rarr; Enter. Done.
+            </div>
+        </div>
+
+        <!-- Managing Appointments -->
+        <div class="guide-section" id="cal-managing">
+            <h5><i class="bi bi-pencil-square"></i> Managing Appointments</h5>
+            <h6>Viewing details:</h6>
+            <p>Click any appointment on the calendar to open the detail popup. It shows customer name, phone, purpose, category, status, notes, and time.</p>
+            <h6>Editing:</h6>
+            <ol>
+                <li>Click the appointment to open the detail popup</li>
+                <li>Click the <strong>Edit</strong> button</li>
+                <li>Change any fields (customer, phone, time, purpose, notes, categories)</li>
+                <li>Click <strong>Save Changes</strong></li>
+            </ol>
+            <h6>Drag &amp; Drop:</h6>
+            <p>In Day or Week view, drag an appointment to a new time slot to reschedule it. The change saves automatically.</p>
+            <h6>Deleting:</h6>
+            <p>Click the appointment &rarr; click <strong>Delete</strong> &rarr; confirm. This is permanent.</p>
+        </div>
+
+        <!-- Status Workflow -->
+        <div class="guide-section" id="cal-statuses">
+            <h5><i class="bi bi-arrow-repeat"></i> Appointment Status Workflow</h5>
+            <p>Each appointment has a status shown by its color on the calendar:</p>
+            <table class="table table-bordered table-sm">
+                <thead class="table-light"><tr><th style="width:150px;">Status</th><th>Color</th><th>Meaning</th><th>Actions Available</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="status-badge status-SCHEDULED">Scheduled</span></td>
+                        <td>Blue</td>
+                        <td>New appointment, not yet confirmed</td>
+                        <td>Confirm, Cancel</td>
+                    </tr>
+                    <tr>
+                        <td><span class="status-badge status-CONFIRMED">Confirmed</span></td>
+                        <td>Green</td>
+                        <td>Customer confirmed they're coming</td>
+                        <td>Complete, No Show, Cancel</td>
+                    </tr>
+                    <tr>
+                        <td><span class="status-badge status-COMPLETED">Completed</span></td>
+                        <td>Gray</td>
+                        <td>Visit done, transaction finished</td>
+                        <td>&mdash;</td>
+                    </tr>
+                    <tr>
+                        <td><span class="status-badge status-CANCELED">Canceled</span></td>
+                        <td>Red (strikethrough)</td>
+                        <td>Appointment was cancelled</td>
+                        <td>Reschedule</td>
+                    </tr>
+                    <tr>
+                        <td><span class="status-badge status-NO_SHOW">No Show</span></td>
+                        <td>Yellow</td>
+                        <td>Customer didn't show up</td>
+                        <td>Reschedule</td>
+                    </tr>
+                </tbody>
+            </table>
+            <h6>Typical flow:</h6>
+            <div class="card bg-light">
+                <div class="card-body py-2">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <span class="status-badge status-SCHEDULED">Scheduled</span>
+                        <i class="bi bi-arrow-right"></i>
+                        <span class="status-badge status-CONFIRMED">Confirmed</span>
+                        <i class="bi bi-arrow-right"></i>
+                        <span class="status-badge status-COMPLETED">Completed</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Day Notes -->
+        <div class="guide-section" id="cal-notes">
+            <h5><i class="bi bi-sticky"></i> Day Notes</h5>
+            <p>Notes are lightweight reminders that appear on the calendar alongside appointments. They show as <em>dashed blue boxes</em> taking up half the width so appointments can sit next to them.</p>
+            <h6>Adding a note:</h6>
+            <ol>
+                <li>Click the <strong>+ Note</strong> button in the calendar toolbar</li>
+                <li>Set the date and (optional) time</li>
+                <li>Type the note content</li>
+                <li>Click <strong>Save Note</strong></li>
+            </ol>
+            <h6>Managing notes:</h6>
+            <ul>
+                <li><strong>View:</strong> Click a note on the calendar to read it</li>
+                <li><strong>Edit:</strong> Click the note &rarr; click Edit &rarr; change content &rarr; Save</li>
+                <li><strong>Move:</strong> Drag and drop to a new time/date</li>
+                <li><strong>Delete:</strong> Click the note &rarr; click Delete</li>
+            </ul>
+            <div class="tip-box">
+                <strong><i class="bi bi-lightbulb"></i></strong> Notes without a time appear as all-day items at the top. Notes with a time appear in the time grid at 15-minute size, taking half width so appointments still fit beside them.
+            </div>
+        </div>
+
+        <!-- Categories -->
+        <div class="guide-section" id="cal-categories">
+            <h5><i class="bi bi-tags"></i> Customer Categories</h5>
+            <p>Every customer (and appointment) can be tagged with three optional category fields:</p>
+            <table class="table table-bordered table-sm">
+                <thead class="table-light"><tr><th>Category</th><th>Options</th><th>Purpose</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Action</strong></td><td>Buying, Selling</td><td>What the customer is doing</td></tr>
+                    <tr><td><strong>Metal</strong></td><td>Gold, Silver, Platinum, Palladium</td><td>Which metal they're interested in</td></tr>
+                    <tr><td><strong>Form</strong></td><td>Bullion, Scrap, Other</td><td>What form the metal is in</td></tr>
+                </tbody>
+            </table>
+            <p>These categories are used in:</p>
+            <ul>
+                <li><strong>Calendar</strong> &mdash; Set when creating/editing appointments (radio buttons)</li>
+                <li><strong>Customers spreadsheet</strong> &mdash; Dropdown columns for each category</li>
+                <li><strong>Texting</strong> &mdash; Filter recipients by category to send targeted messages</li>
+                <li><strong>Matching</strong> &mdash; Match buyers with sellers of the same metal</li>
+            </ul>
+            <p>Categories are <strong>not mandatory</strong>. Leave them blank if they don't apply.</p>
+        </div>
+
+        <hr>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- CUSTOMERS                                -->
+        <!-- ════════════════════════════════════════ -->
+        <div class="guide-section" id="sec-customers">
+            <h3><i class="bi bi-people"></i> Customers</h3>
+        </div>
+
+        <div class="guide-section" id="cust-spreadsheet">
+            <h5><i class="bi bi-table"></i> Customer Spreadsheet</h5>
+            <p>Go to <a href="{% url 'customer_list' %}"><strong>Customers</strong></a> in the sidebar. The spreadsheet lets you view and edit all customer data in a familiar Excel-like grid.</p>
+            <h6>Columns:</h6>
+            <ul>
+                <li><strong>Name</strong> &mdash; Customer's full name</li>
+                <li><strong>Phone</strong> &mdash; Phone number (used for texting and matching inbound calls/texts)</li>
+                <li><strong>Email</strong> &mdash; Email address (fallback for SendGrid)</li>
+                <li><strong>Action</strong> &mdash; Buying / Selling (dropdown)</li>
+                <li><strong>Metal</strong> &mdash; Gold / Silver / Platinum / Palladium (dropdown)</li>
+                <li><strong>Form</strong> &mdash; Bullion / Scrap / Other (dropdown)</li>
+                <li><strong>Status</strong> &mdash; Active / Inactive / VIP</li>
+                <li><strong>Source</strong> &mdash; How the customer was added (Walk-in, Phone, Website, Referral, Text)</li>
+            </ul>
+            <p>Changes save automatically when you click out of a cell. Use the filter dropdowns at the top to narrow by Action, Metal, or Form.</p>
+        </div>
+
+        <div class="guide-section" id="cust-import">
+            <h5><i class="bi bi-cloud-upload"></i> Import &amp; Export</h5>
+            <p>Go to <a href="{% url 'csv_import' %}"><strong>Import/Export</strong></a> in the sidebar.</p>
+            <h6>Importing customers from CSV:</h6>
+            <ol>
+                <li>Prepare a CSV with columns: <code>Name</code>, <code>Phone</code>, <code>Email</code>, <code>Action</code>, <code>Metal</code>, <code>Form</code></li>
+                <li>Accepted Action values: <code>BUYING</code>, <code>SELLING</code></li>
+                <li>Accepted Metal values: <code>GOLD</code>, <code>SILVER</code>, <code>PLATINUM</code>, <code>PALLADIUM</code></li>
+                <li>Accepted Form values: <code>BULLION</code>, <code>SCRAP</code>, <code>OTHER</code></li>
+                <li>Upload the CSV and select "Customer" as the import type</li>
+            </ol>
+            <h6>Exporting:</h6>
+            <ul>
+                <li><a href="{% url 'csv_export_texts' %}">Export Texts as CSV</a> &mdash; all text message history</li>
+                <li><a href="{% url 'csv_export_calls' %}">Export Calls as CSV</a> &mdash; all call log records</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- CALL LOG                                 -->
+        <!-- ════════════════════════════════════════ -->
+        <div class="guide-section" id="sec-calls">
+            <h3><i class="bi bi-telephone"></i> Call Log &amp; AI Front Desk Integration</h3>
+            <p>The call log captures calls from <strong>My AI Front Desk</strong> (myaifrontdesk.com) via a webhook.</p>
+            <h6>Setup (Admin):</h6>
+            <ol>
+                <li>In your My AI Front Desk dashboard, go to Settings &rarr; Integrations</li>
+                <li>Add a Post-Call Webhook: <code>https://agent.opentruthai.com/frontdesk/calls/webhook/</code></li>
+                <li>Method: <strong>POST</strong>, Content-Type: <strong>application/json</strong></li>
+            </ol>
+            <h6>What gets captured:</h6>
+            <ul>
+                <li>Caller phone number, direction (inbound/outbound), duration, transcript</li>
+                <li>System auto-matches phone numbers to existing customers</li>
+                <li>Unmatched calls show as "Unmatched" &mdash; you can link them manually</li>
+            </ul>
+            <h6>Importing existing history:</h6>
+            <p>Export call history from My AI Front Desk as CSV &rarr; upload via <a href="{% url 'csv_import' %}">Import/Export</a> &rarr; select "Call Log" type.</p>
+        </div>
+
+        <hr>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- TROUBLESHOOTING                          -->
+        <!-- ════════════════════════════════════════ -->
+        <div class="guide-section" id="sec-troubleshoot">
+            <h3><i class="bi bi-wrench"></i> Troubleshooting</h3>
+
+            <div class="accordion" id="troubleAcc">
+                <div class="accordion-item">
+                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tr1">Texts send but customer doesn't receive them</button></h2>
+                    <div id="tr1" class="accordion-collapse collapse" data-bs-parent="#troubleAcc">
+                        <div class="accordion-body">
+                            <ul>
+                                <li>Check the phone number format &mdash; must include country code (e.g., +12065551234)</li>
+                                <li><strong>Trial account?</strong> On Twilio trial, you can only send to <strong>verified numbers</strong>. Go to Twilio Console &rarr; Verified Caller IDs and add the number.</li>
+                                <li>Check your Twilio balance &mdash; prepaid accounts can run out</li>
+                                <li>Check logs: <code>docker logs frontdesk-web --tail 100</code></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tr2">Incoming texts are not showing up</button></h2>
+                    <div id="tr2" class="accordion-collapse collapse" data-bs-parent="#troubleAcc">
+                        <div class="accordion-body">
+                            <ul>
+                                <li><strong>Most common:</strong> Webhook is set under Voice Configuration instead of Messaging. Check Twilio phone number settings &rarr; scroll to <strong>Messaging</strong> section.</li>
+                                <li>URL must be exactly: <code>https://agent.opentruthai.com/frontdesk/sms/webhook/</code> (trailing slash required)</li>
+                                <li>Method must be <strong>HTTP POST</strong></li>
+                                <li>Check Twilio Error Logs: Monitor &rarr; Logs &rarr; Errors</li>
+                                <li>Verify HTTPS is working on the server</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tr3">"No phone or email on file" error</button></h2>
+                    <div id="tr3" class="accordion-collapse collapse" data-bs-parent="#troubleAcc">
+                        <div class="accordion-body">
+                            <p>The customer doesn't have a phone number saved. Add it via:</p>
+                            <ul>
+                                <li><strong>Customers spreadsheet</strong> &mdash; find the customer and type their phone number</li>
+                                <li><strong>Calendar</strong> &mdash; click the appointment &rarr; Edit &rarr; add the phone number</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tr4">Calendar not loading / blank page</button></h2>
+                    <div id="tr4" class="accordion-collapse collapse" data-bs-parent="#troubleAcc">
+                        <div class="accordion-body">
+                            <ul>
+                                <li>Hard refresh: <kbd>Ctrl+Shift+R</kbd> (or <kbd>Cmd+Shift+R</kbd> on Mac)</li>
+                                <li>Clear browser cache</li>
+                                <li>Check if the server is running: <code>docker compose ps</code></li>
+                                <li>Check logs: <code>docker logs frontdesk-web --tail 50</code></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tr5">Environment variables not working after change</button></h2>
+                    <div id="tr5" class="accordion-collapse collapse" data-bs-parent="#troubleAcc">
+                        <div class="accordion-body">
+                            <ul>
+                                <li>The <code>.env</code> file must be at <code>/opt/frontdesk/.env</code> (same folder as docker-compose.yml)</li>
+                                <li>No quotes around values: <code>TWILIO_PHONE=+12065551234</code> not <code>TWILIO_PHONE="+12065551234"</code></li>
+                                <li>Must do a full restart: <code>docker compose down && docker compose up -d</code></li>
+                                <li>Verify: <code>docker exec frontdesk-web env | grep TWILIO</code></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tr6">Twilio trial account limitations</button></h2>
+                    <div id="tr6" class="accordion-collapse collapse" data-bs-parent="#troubleAcc">
+                        <div class="accordion-body">
+                            <ul>
+                                <li>Can only send to <strong>verified phone numbers</strong></li>
+                                <li>Outgoing messages prefixed with "Sent from your Twilio trial account"</li>
+                                <li>Incoming texts work normally</li>
+                                <li>Upgrade to paid account to remove all restrictions</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <hr>
+
+        <!-- ════════════════════════════════════════ -->
+        <!-- QUICK REFERENCE                          -->
+        <!-- ════════════════════════════════════════ -->
+        <div class="guide-section" id="sec-reference">
+            <h3><i class="bi bi-bookmark"></i> Quick Reference</h3>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-dark text-white py-2"><strong>URLs &amp; Webhooks</strong></div>
+                        <div class="card-body p-2">
+                            <table class="table table-sm mb-0">
+                                <tr><td class="text-muted">Front Desk CRM</td><td><code>https://agent.opentruthai.com/frontdesk/</code></td></tr>
+                                <tr><td class="text-muted">SMS Webhook (Twilio)</td><td><code>/frontdesk/sms/webhook/</code></td></tr>
+                                <tr><td class="text-muted">Call Webhook (AI FD)</td><td><code>/frontdesk/calls/webhook/</code></td></tr>
+                                <tr><td class="text-muted">Twilio Console</td><td><code>console.twilio.com</code></td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-dark text-white py-2"><strong>Environment Variables</strong></div>
+                        <div class="card-body p-2">
+                            <table class="table table-sm mb-0">
+                                <tr><td><code>TWILIO_ACCOUNT_SID</code></td><td>Starts with AC</td></tr>
+                                <tr><td><code>TWILIO_AUTH_TOKEN</code></td><td>Auth token from dashboard</td></tr>
+                                <tr><td><code>TWILIO_PHONE</code></td><td>+1XXXXXXXXXX format</td></tr>
+                                <tr><td><code>SENDGRID_API_KEY</code></td><td>Optional email fallback</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-dark text-white py-2"><strong>Server Commands</strong></div>
+                        <div class="card-body p-2">
+                            <div class="code-block" style="margin:0;font-size:0.8rem;">
+                                <span class="cmt"># View logs</span><br>
+                                docker logs frontdesk-web --tail 100<br><br>
+                                <span class="cmt"># Restart after .env changes</span><br>
+                                cd /opt/frontdesk<br>
+                                docker compose down && docker compose up -d<br><br>
+                                <span class="cmt"># Check running containers</span><br>
+                                docker compose ps<br><br>
+                                <span class="cmt"># Verify env vars loaded</span><br>
+                                docker exec frontdesk-web env | grep TWILIO
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-dark text-white py-2"><strong>Calendar Color Key</strong></div>
+                        <div class="card-body p-2">
+                            <table class="table table-sm mb-0">
+                                <tr><td><span class="badge" style="background:#0d6efd;">&nbsp;&nbsp;&nbsp;</span> Blue</td><td>Scheduled (new)</td></tr>
+                                <tr><td><span class="badge" style="background:#198754;">&nbsp;&nbsp;&nbsp;</span> Green</td><td>Confirmed</td></tr>
+                                <tr><td><span class="badge" style="background:#6c757d;">&nbsp;&nbsp;&nbsp;</span> Gray</td><td>Completed</td></tr>
+                                <tr><td><span class="badge" style="background:#f8d7da;border:1px solid #dc3545;">&nbsp;&nbsp;&nbsp;</span> Red</td><td>Canceled</td></tr>
+                                <tr><td><span class="badge" style="background:#ffc107;">&nbsp;&nbsp;&nbsp;</span> Yellow</td><td>No Show</td></tr>
+                                <tr><td><span class="badge" style="background:rgba(13,110,253,0.12);border:1px dashed rgba(13,110,253,0.4);">&nbsp;&nbsp;&nbsp;</span> Dashed Blue</td><td>Note</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center text-muted py-4">
+            <small>J. Austin Front Desk Processing &mdash; Staff Integration Guide</small><br>
+            <small>To save as PDF: Click <strong>Print / Save as PDF</strong> at the top of this page, then choose "Save as PDF" as your printer.</small>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
