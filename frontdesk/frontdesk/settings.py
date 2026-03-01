@@ -16,6 +16,7 @@ DEBUG = os.environ.get("FRONTDESK_DEBUG", "True").lower() in ("true", "1", "yes"
 
 ALLOWED_HOSTS = [
     "agent.opentruthai.com",
+    "frontdesk.huttonetwork.com",
     "localhost",
     "127.0.0.1",
     "0.0.0.0",
@@ -98,17 +99,17 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files
-STATIC_URL = "/frontdesk/static/"
+STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# URL prefix - Django is served behind nginx at /frontdesk/
-FORCE_SCRIPT_NAME = "/frontdesk"
+# URL prefix - set via environment if behind reverse proxy
+FORCE_SCRIPT_NAME = os.environ.get("SCRIPT_NAME", None)
 
 # Login
-LOGIN_URL = "/frontdesk/login/"
-LOGIN_REDIRECT_URL = "/frontdesk/"
-LOGOUT_REDIRECT_URL = "/frontdesk/login/"
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/login/"
 
 # Crispy Forms
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
@@ -117,6 +118,7 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 # CSRF - required for Django 4.0+ behind reverse proxy with SSL
 CSRF_TRUSTED_ORIGINS = [
     "https://agent.opentruthai.com",
+    "https://frontdesk.huttonetwork.com",
 ]
 
 # Tell Django it's behind HTTPS proxy
@@ -126,6 +128,7 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = [
     "https://agent.opentruthai.com",
+    "https://frontdesk.huttonetwork.com",
 ]
 
 # Default primary key field type
