@@ -63,4 +63,10 @@ urlpatterns = [
     path("spread/api/", views.product_api, name="product_api"),
     # High Command Alert System
     path("api/highcommand/", views.highcommand_api, name="highcommand_api"),
+    # Toggle Board — Voice Receptionist Scheduling Control
+    path("toggles/", views.toggle_board_view, name="toggle_board"),
+    path("toggles/api/", views.toggle_api, name="toggle_api"),
+    # Tark1 External API — Voice Receptionist Integration
+    path("api/toggles/", views.tark1_toggles_api, name="tark1_toggles_api"),
+    path("api/voice-schedule/", views.tark1_voice_schedule_api, name="tark1_voice_schedule_api"),
 ]

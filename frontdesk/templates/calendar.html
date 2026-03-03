@@ -416,8 +416,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         },
         eventSources: [
-            { url: '/frontdesk/appointments/api/', failure: function() { alert('Error loading events'); } },
-            { url: '/frontdesk/notes/api/', id: 'notes', failure: function() {} ,
+            { url: '/appointments/api/', failure: function() { alert('Error loading events'); } },
+            { url: '/notes/api/', id: 'notes', failure: function() {} ,
               success: function(rawEvents) {
                   dayNotes = rawEvents;
                   return rawEvents.map(function(n) {
@@ -531,7 +531,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 var newDate = info.event.start;
                 var dateStr = newDate.getFullYear() + '-' + String(newDate.getMonth()+1).padStart(2,'0') + '-' + String(newDate.getDate()).padStart(2,'0');
                 var timeStr = info.event.allDay ? '' : String(newDate.getHours()).padStart(2,'0') + ':' + String(newDate.getMinutes()).padStart(2,'0');
-                fetch('/frontdesk/notes/api/', {
+                fetch('/notes/api/', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
                     credentials: 'same-origin',
@@ -539,7 +539,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 return;
             }
-            fetch('/frontdesk/appointments/api/', {
+            fetch('/appointments/api/', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
                 credentials: 'same-origin',
@@ -714,7 +714,7 @@ function saveEdit() {
     if (dt) body.datetime = new Date(dt).toISOString();
     if (endDt) body.end_datetime = new Date(endDt).toISOString();
 
-    fetch('/frontdesk/appointments/api/', {
+    fetch('/appointments/api/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
@@ -735,7 +735,7 @@ function saveEdit() {
 // ─── Delete Appointment ───
 function deleteAppointment() {
     if (!confirm('Permanently delete this appointment? This cannot be undone.')) return;
-    fetch('/frontdesk/appointments/api/', {
+    fetch('/appointments/api/', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
@@ -756,7 +756,7 @@ function deleteAppointment() {
 // ─── Status Update ───
 function updateStatus(newStatus) {
     if (!currentEventId) return;
-    fetch('/frontdesk/appointments/api/', {
+    fetch('/appointments/api/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
@@ -858,7 +858,7 @@ function saveAppointment() {
         formData.append('duration', duration);
         if (notes) formData.append('notes', notes);
 
-        fetch('/frontdesk/appointments/create/', {
+        fetch('/appointments/create/', {
             method: 'POST',
             headers: { 'X-CSRFToken': csrftoken },
             credentials: 'same-origin',
@@ -926,7 +926,7 @@ function saveNote() {
     var body = { date: date, time: time || null, content: content };
     if (noteId) body.id = parseInt(noteId);
 
-    fetch('/frontdesk/notes/api/', {
+    fetch('/notes/api/', {
         method: method,
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
@@ -966,7 +966,7 @@ function showNoteDetail(noteId, content, date, time) {
 
     document.getElementById('noteDeleteBtn').onclick = function() {
         if (!confirm('Delete this note?')) return;
-        fetch('/frontdesk/notes/api/', {
+        fetch('/notes/api/', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
             credentials: 'same-origin',
@@ -997,7 +997,7 @@ function loadInventoryOptions(selectId, customerAction, metal, selectedId) {
     if (customerAction) params.set('customer_action', customerAction);
     if (metal) params.set('metal', metal);
 
-    fetch('/frontdesk/inventory/for-appointment/?' + params.toString(), { credentials: 'same-origin' })
+    fetch('/inventory/for-appointment/?' + params.toString(), { credentials: 'same-origin' })
         .then(function(r) { return r.json(); })
         .then(function(d) {
             var items = d.items || [];
@@ -1089,7 +1089,7 @@ function loadLineInventory(idx) {
     if (action) params.set('customer_action', action);
     if (metal) params.set('metal', metal);
 
-    fetch('/frontdesk/inventory/for-appointment/?' + params.toString(), { credentials: 'same-origin' })
+    fetch('/inventory/for-appointment/?' + params.toString(), { credentials: 'same-origin' })
         .then(function(r) { return r.json(); })
         .then(function(d) {
             var items = d.items || [];
@@ -1146,7 +1146,7 @@ function startCalendarPolling() {
 
 function updateEventHash() {
     // Create a simple hash of current appointments for comparison
-    fetch('/frontdesk/appointments/api/', { credentials: 'same-origin' })
+    fetch('/appointments/api/', { credentials: 'same-origin' })
         .then(function(r) { return r.json(); })
         .then(function(events) {
             lastEventHash = generateHash(events);
@@ -1181,7 +1181,7 @@ function checkForUpdates() {
         return;
     }
 
-    fetch('/frontdesk/appointments/api/', { credentials: 'same-origin' })
+    fetch('/appointments/api/', { credentials: 'same-origin' })
         .then(function(r) { return r.json(); })
         .then(function(events) {
             var newHash = generateHash(events);

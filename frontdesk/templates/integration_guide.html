@@ -98,6 +98,10 @@
                     <a class="nav-link" href="#cust-spreadsheet">Spreadsheet View</a>
                     <a class="nav-link" href="#cust-import">Import / Export</a>
                     <a class="nav-link section-head" href="#sec-calls">Call Log</a>
+                    <a class="nav-link section-head" href="#sec-tark1">Tark1 Voice AI</a>
+                    <a class="nav-link" href="#tark1-overview">Overview</a>
+                    <a class="nav-link" href="#tark1-toggles">Toggle Board</a>
+                    <a class="nav-link" href="#tark1-api">API Endpoints</a>
                     <a class="nav-link section-head" href="#sec-troubleshoot">Troubleshooting</a>
                     <a class="nav-link section-head" href="#sec-reference">Quick Reference</a>
                 </nav>
@@ -761,6 +765,111 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Tark1 Voice AI Integration -->
+        <div class="guide-section" id="sec-tark1">
+            <h3><i class="bi bi-telephone-inbound text-primary"></i> Tark1 Voice AI Integration</h3>
+
+            <div id="tark1-overview">
+                <h5><span class="step-number">1</span> Overview</h5>
+                <p>
+                    <strong>Tark1</strong> is the AI voice receptionist running on <code>192.168.1.200:3001</code> (public: <code>voice.huttonetwork.com</code>).
+                    When a customer calls J. Austin at <strong>(541) 631-3838</strong>, Tark1 answers, detects what they want,
+                    and uses the <strong>Toggle Board</strong> in Frontdesk to decide whether to auto-schedule or request a callback.
+                </p>
+                <div class="ok-box">
+                    <strong>Flow:</strong> Customer calls &rarr; Tark1 answers &rarr; Detects product category &rarr;
+                    Checks Toggle Board &rarr; Auto-schedules OR tells caller to wait for callback.
+                </div>
+            </div>
+
+            <div id="tark1-toggles" class="mt-4">
+                <h5><span class="step-number">2</span> Toggle Board</h5>
+                <p>Go to <a href="/toggles/"><strong>Toggle Board</strong></a> in the sidebar. You'll see five product categories:</p>
+                <table class="table table-bordered table-sm">
+                    <thead class="table-dark">
+                        <tr><th>Category</th><th>Toggle ON</th><th>Toggle OFF</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Scrap Gold</td><td class="table-success">Auto-schedule appointment</td><td class="table-danger">Callback required</td></tr>
+                        <tr><td>Scrap Silver</td><td class="table-success">Auto-schedule appointment</td><td class="table-danger">Callback required</td></tr>
+                        <tr><td>Gold Eagles</td><td class="table-success">Auto-schedule appointment</td><td class="table-danger">Callback required</td></tr>
+                        <tr><td>1 oz Silver Rounds</td><td class="table-success">Auto-schedule appointment</td><td class="table-danger">Callback required</td></tr>
+                        <tr><td>1 oz Silver Eagles</td><td class="table-success">Auto-schedule appointment</td><td class="table-danger">Callback required</td></tr>
+                    </tbody>
+                </table>
+                <div class="tip-box">
+                    <strong>Tip:</strong> Items not on the toggle board (e.g., platinum bars, palladium) will always require a callback.
+                    The voice AI will say "Let me have someone call you back about that."
+                </div>
+            </div>
+
+            <div id="tark1-api" class="mt-4">
+                <h5><span class="step-number">3</span> API Endpoints (for Tark1 developers)</h5>
+
+                <p><strong>Check toggle status:</strong></p>
+                <div class="code-block">
+                    <span class="hl">GET</span> /api/toggles/<br><br>
+                    <span class="cmt">// Response:</span><br>
+                    {<br>
+                    &nbsp;&nbsp;<span class="hl">"toggles"</span>: {<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="val">"SCRAP_GOLD"</span>: { <span class="hl">"label"</span>: <span class="val">"Scrap Gold"</span>, <span class="hl">"auto_schedule"</span>: <span class="val">true</span> },<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="val">"SCRAP_SILVER"</span>: { <span class="hl">"label"</span>: <span class="val">"Scrap Silver"</span>, <span class="hl">"auto_schedule"</span>: <span class="val">false</span> },<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;...<br>
+                    &nbsp;&nbsp;}<br>
+                    }
+                </div>
+
+                <p><strong>Auto-schedule appointment:</strong></p>
+                <div class="code-block">
+                    <span class="hl">POST</span> /api/voice-schedule/<br><br>
+                    {<br>
+                    &nbsp;&nbsp;<span class="hl">"caller_name"</span>: <span class="val">"John Smith"</span>,<br>
+                    &nbsp;&nbsp;<span class="hl">"caller_phone"</span>: <span class="val">"+15415551234"</span>,<br>
+                    &nbsp;&nbsp;<span class="hl">"category"</span>: <span class="val">"SCRAP_GOLD"</span>,<br>
+                    &nbsp;&nbsp;<span class="hl">"preferred_date"</span>: <span class="val">"2026-03-04"</span>, <span class="cmt">// optional</span><br>
+                    &nbsp;&nbsp;<span class="hl">"preferred_time"</span>: <span class="val">"14:00"</span>, <span class="cmt">// optional</span><br>
+                    &nbsp;&nbsp;<span class="hl">"notes"</span>: <span class="val">"Has about 3 oz scrap gold"</span>, <span class="cmt">// optional</span><br>
+                    &nbsp;&nbsp;<span class="hl">"location"</span>: <span class="val">"Ashland"</span> <span class="cmt">// optional, defaults to J. Austin Office</span><br>
+                    }
+                </div>
+
+                <p><strong>Tark1 decision logic (pseudocode for server.js):</strong></p>
+                <div class="code-block">
+                    <span class="cmt">// After detecting customer intent...</span><br>
+                    <span class="hl">const</span> res = <span class="hl">await</span> fetch(<span class="val">'http://apollo9:8001/api/toggles/'</span>);<br>
+                    <span class="hl">const</span> { toggles } = <span class="hl">await</span> res.json();<br><br>
+                    <span class="hl">if</span> (toggles[category] && toggles[category].auto_schedule) {<br>
+                    &nbsp;&nbsp;<span class="cmt">// Ask for name, phone, preferred time</span><br>
+                    &nbsp;&nbsp;<span class="cmt">// POST to /api/voice-schedule/</span><br>
+                    &nbsp;&nbsp;say(<span class="val">"Great, I've scheduled you for tomorrow at 10 AM."</span>);<br>
+                    } <span class="hl">else if</span> (toggles[category]) {<br>
+                    &nbsp;&nbsp;say(<span class="val">"We'll have someone call you back shortly about that."</span>);<br>
+                    } <span class="hl">else</span> {<br>
+                    &nbsp;&nbsp;say(<span class="val">"Let me have someone call you back about that."</span>);<br>
+                    }
+                </div>
+
+                <div class="warn-box">
+                    <strong>Important:</strong> The <code>POST /api/voice-schedule/</code> endpoint will return a <code>403</code>
+                    if the toggle is OFF, preventing accidental scheduling. Tark1 should always check toggles first.
+                </div>
+
+                <p><strong>Category codes for Tark1:</strong></p>
+                <table class="table table-bordered table-sm">
+                    <thead class="table-dark">
+                        <tr><th>Code</th><th>Display Name</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>SCRAP_GOLD</code></td><td>Scrap Gold</td></tr>
+                        <tr><td><code>SCRAP_SILVER</code></td><td>Scrap Silver</td></tr>
+                        <tr><td><code>GOLD_EAGLES</code></td><td>Gold Eagles</td></tr>
+                        <tr><td><code>1OZ_SILVER_ROUNDS</code></td><td>1 oz Silver Rounds</td></tr>
+                        <tr><td><code>1OZ_SILVER_EAGLES</code></td><td>1 oz Silver Eagles</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 

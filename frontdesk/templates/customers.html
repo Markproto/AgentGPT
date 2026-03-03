@@ -114,7 +114,7 @@ function loadData() {
     if (metal) params.set('metal', metal);
     if (form) params.set('metal_form', form);
     const qs = params.toString();
-    const url = '/frontdesk/customers/api/' + (qs ? '?' + qs : '');
+    const url = '/customers/api/' + (qs ? '?' + qs : '');
     fetch(url, { credentials: 'same-origin' })
         .then(r => r.json())
         .then(d => {
@@ -124,7 +124,7 @@ function loadData() {
 }
 
 function saveRow(rowData) {
-    fetch('/frontdesk/customers/api/', {
+    fetch('/customers/api/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
@@ -135,7 +135,7 @@ function saveRow(rowData) {
 }
 
 function addRow() {
-    fetch('/frontdesk/customers/api/', {
+    fetch('/customers/api/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
@@ -151,7 +151,7 @@ function saveAll() {
     let saved = 0;
     data.forEach(row => {
         if (row.id) {
-            fetch('/frontdesk/customers/api/', {
+            fetch('/customers/api/', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
                 credentials: 'same-origin',

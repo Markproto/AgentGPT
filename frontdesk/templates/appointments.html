@@ -222,7 +222,7 @@ function loadDate(dateStr) {
     const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     document.getElementById('dateLabel').textContent = d.toLocaleDateString('en-US', opts);
 
-    fetch('/frontdesk/appointments/api/?start=' + dateStr + 'T00:00:00&end=' + dateStr + 'T23:59:59')
+    fetch('/appointments/api/?start=' + dateStr + 'T00:00:00&end=' + dateStr + 'T23:59:59')
         .then(r => {
             if (!r.ok) throw new Error('Server error ' + r.status);
             return r.json();
@@ -432,7 +432,7 @@ function saveInlineAppt(slotKey, customerName, purpose, duration) {
     if (h === 0) h = 12;
     formData.set('appt_time', h + ':' + m + ' ' + ampm);
 
-    fetch('/frontdesk/appointments/create/', {
+    fetch('/appointments/create/', {
         method: 'POST',
         headers: { 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
@@ -455,7 +455,7 @@ function saveInlineAppt(slotKey, customerName, purpose, duration) {
 // ─── Split Slot (30min → two 15min) ───
 function splitSlot(slotKey, existingApptId) {
     // First, shorten the existing appointment to 15 minutes
-    fetch('/frontdesk/appointments/api/', {
+    fetch('/appointments/api/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
@@ -574,7 +574,7 @@ function doubleBook(slotKey, duration) {
 
 // ─── Status Update ───
 function setStatus(id, status) {
-    fetch('/frontdesk/appointments/api/', {
+    fetch('/appointments/api/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
         credentials: 'same-origin',
@@ -627,7 +627,7 @@ function loadWeek(dateStr) {
     const moE = endD.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     document.getElementById('dateLabel').textContent = moS + ' - ' + moE;
 
-    fetch('/frontdesk/appointments/api/?start=' + startStr + 'T00:00:00&end=' + endStr + 'T23:59:59')
+    fetch('/appointments/api/?start=' + startStr + 'T00:00:00&end=' + endStr + 'T23:59:59')
         .then(r => r.json())
         .then(events => {
             renderWeek(weekDates, events);

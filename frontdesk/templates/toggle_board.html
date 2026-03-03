@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}Toggle Board — J. Austin Front Desk{% endblock %}
+{% block page_title %}Voice Receptionist Toggle Board{% endblock %}
+
+{% block extra_css %}
+<style>
+    .toggle-card {
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        overflow: hidden;
+    }
+    .toggle-card:hover {
+        box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+        transform: translateY(-2px);
+    }
+    .toggle-card.active {
+        border-left: 5px solid #198754;
+    }
+    .toggle-card.inactive {
+        border-left: 5px solid #dc3545;
+    }
+    .toggle-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.5rem;
+    }
+    .toggle-label {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0;
+    }
+    .toggle-status {
+        font-size: 0.85rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+    .toggle-status.on {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+    .toggle-status.off {
+        background: #f8d7da;
+        color: #842029;
+    }
+    .toggle-body {
+        padding: 0 1.5rem 1.5rem;
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    .toggle-meta {
+        font-size: 0.75rem;
+        color: #adb5bd;
+        margin-top: 0.5rem;
+    }
+    /* Big toggle switch */
+    .form-check-input.big-toggle {
+        width: 3.5rem;
+        height: 1.75rem;
+        cursor: pointer;
+    }
+    .board-header {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        color: #fff;
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+    .board-header h2 {
+        margin: 0;
+        font-weight: 700;
+    }
+    .board-header p {
+        margin: 0.5rem 0 0;
+        opacity: 0.8;
+        font-size: 0.95rem;
+    }
+    .legend {
+        display: flex;
+        gap: 2rem;
+        margin-top: 1rem;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+    }
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+    .legend-dot.green { background: #198754; }
+    .legend-dot.red { background: #dc3545; }
+    .legend-dot.gray { background: #6c757d; }
+    .tark1-status {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-top: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="board-header">
+    <div class="d-flex align-items-center justify-content-between">
+        <div>
+            <h2><i class="bi bi-toggles2"></i> Product Toggle Board</h2>
+            <p>Control which products Tark1 (voice receptionist) auto-schedules vs sends to callback.</p>
+        </div>
+        <div>
+            <span class="badge bg-light text-dark fs-6">
+                <i class="bi bi-telephone-inbound"></i> Tark1 Voice AI
+            </span>
+        </div>
+    </div>
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-dot green"></div>
+            <span>ON = Auto-schedule appointment</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot red"></div>
+            <span>OFF = Told to wait for callback</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot gray"></div>
+            <span>Not on board = Callback if we deal in it</span>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    {% for toggle in toggles %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card toggle-card {% if toggle.is_active %}active{% else %}inactive{% endif %}" id="card-{{ toggle.id }}">
+            <div class="toggle-header">
+                <div>
+                    <h5 class="toggle-label">
+                        {% if toggle.category == 'SCRAP_GOLD' %}
+                            <i class="bi bi-gem text-warning"></i>
+                        {% elif toggle.category == 'SCRAP_SILVER' %}
+                            <i class="bi bi-gem text-secondary"></i>
+                        {% elif toggle.category == 'GOLD_EAGLES' %}
+                            <i class="bi bi-coin text-warning"></i>
+                        {% elif toggle.category == '1OZ_SILVER_ROUNDS' %}
+                            <i class="bi bi-circle text-secondary"></i>
+                        {% elif toggle.category == '1OZ_SILVER_EAGLES' %}
+                            <i class="bi bi-shield text-secondary"></i>
+                        {% endif %}
+                        {{ toggle.get_category_display }}
+                    </h5>
+                    <span class="toggle-status {% if toggle.is_active %}on{% else %}off{% endif %}" id="status-{{ toggle.id }}">
+                        {% if toggle.is_active %}AUTO-SCHEDULE{% else %}CALLBACK{% endif %}
+                    </span>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input big-toggle"
+                           type="checkbox"
+                           role="switch"
+                           id="toggle-{{ toggle.id }}"
+                           {% if toggle.is_active %}checked{% endif %}
+                           onchange="flipToggle({{ toggle.id }}, this.checked)">
+                </div>
+            </div>
+            <div class="toggle-body">
+                {% if toggle.is_active %}
+                    Callers about <strong>{{ toggle.get_category_display }}</strong> will be automatically scheduled for an appointment.
+                {% else %}
+                    Callers about <strong>{{ toggle.get_category_display }}</strong> will be told to wait for a callback.
+                {% endif %}
+                <div class="toggle-meta" id="meta-{{ toggle.id }}">
+                    {% if toggle.updated_by %}
+                        Last changed by {{ toggle.updated_by }} &mdash; {{ toggle.updated_at|timesince }} ago
+                    {% else %}
+                        Not yet changed
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="tark1-status">
+    <h5><i class="bi bi-diagram-3"></i> How It Works</h5>
+    <ol class="mb-0">
+        <li>Customer calls J. Austin &rarr; <strong>Tark1</strong> (voice AI on 192.168.1.200) answers</li>
+        <li>Tark1 detects what the customer wants (scrap gold, silver eagles, etc.)</li>
+        <li>Tark1 calls <code>GET /api/toggles/</code> on Frontdesk to check this board</li>
+        <li>
+            <strong>Toggle ON:</strong> Tark1 collects name/phone/time preference and calls
+            <code>POST /api/voice-schedule/</code> to book the appointment automatically
+        </li>
+        <li><strong>Toggle OFF:</strong> Tark1 tells the caller "we'll call you back shortly"</li>
+        <li><strong>Item not on board:</strong> Tark1 says "let me have someone call you back about that"</li>
+    </ol>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function flipToggle(toggleId, isActive) {
+    fetch('/toggles/api/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken,
+        },
+        body: JSON.stringify({
+            id: toggleId,
+            is_active: isActive,
+        }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + data.error);
+            // Revert the toggle
+            document.getElementById('toggle-' + toggleId).checked = !isActive;
+            return;
+        }
+
+        const card = document.getElementById('card-' + toggleId);
+        const status = document.getElementById('status-' + toggleId);
+        const meta = document.getElementById('meta-' + toggleId);
+
+        if (isActive) {
+            card.classList.remove('inactive');
+            card.classList.add('active');
+            status.classList.remove('off');
+            status.classList.add('on');
+            status.textContent = 'AUTO-SCHEDULE';
+        } else {
+            card.classList.remove('active');
+            card.classList.add('inactive');
+            status.classList.remove('on');
+            status.classList.add('off');
+            status.textContent = 'CALLBACK';
+        }
+        meta.textContent = 'Just now by ' + data.updated_by;
+    })
+    .catch(err => {
+        alert('Failed to update toggle: ' + err);
+        document.getElementById('toggle-' + toggleId).checked = !isActive;
+    });
+}
+</script>
+{% endblock %}

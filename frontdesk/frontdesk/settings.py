@@ -98,17 +98,21 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files
-STATIC_URL = "/frontdesk/static/"
+# When behind nginx with a prefix (e.g. /frontdesk/), set FRONTDESK_URL_PREFIX=/frontdesk
+# When on its own domain (e.g. frontdesk.huttonetwork.com), leave FRONTDESK_URL_PREFIX empty
+_URL_PREFIX = os.environ.get("FRONTDESK_URL_PREFIX", "")
+STATIC_URL = f"{_URL_PREFIX}/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# URL prefix - Django is served behind nginx at /frontdesk/
-FORCE_SCRIPT_NAME = "/frontdesk"
+# URL prefix - set FORCE_SCRIPT_NAME only when behind nginx with a sub-path
+if _URL_PREFIX:
+    FORCE_SCRIPT_NAME = _URL_PREFIX
 
 # Login
-LOGIN_URL = "/frontdesk/login/"
-LOGIN_REDIRECT_URL = "/frontdesk/"
-LOGOUT_REDIRECT_URL = "/frontdesk/login/"
+LOGIN_URL = f"{_URL_PREFIX}/login/"
+LOGIN_REDIRECT_URL = f"{_URL_PREFIX}/"
+LOGOUT_REDIRECT_URL = f"{_URL_PREFIX}/login/"
 
 # Crispy Forms
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
@@ -117,7 +121,12 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 # CSRF - required for Django 4.0+ behind reverse proxy with SSL
 CSRF_TRUSTED_ORIGINS = [
     "https://agent.opentruthai.com",
+    "https://frontdesk.huttonetwork.com",
 ]
+# Allow additional trusted origins via env var (comma-separated)
+_extra_csrf = os.environ.get("FRONTDESK_CSRF_TRUSTED_ORIGINS", "")
+if _extra_csrf:
+    CSRF_TRUSTED_ORIGINS += [o.strip() for o in _extra_csrf.split(",") if o.strip()]
 
 # Tell Django it's behind HTTPS proxy
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
@@ -126,6 +135,7 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = [
     "https://agent.opentruthai.com",
+    "https://frontdesk.huttonetwork.com",
 ]
 
 # Default primary key field type
