@@ -3,7 +3,7 @@ Admin configuration for J. Austin Front Desk Processing.
 """
 
 from django.contrib import admin
-from .models import Customer, Interaction, TextTemplate, Match, Appointment, CallLog
+from .models import Customer, Interaction, TextTemplate, Match, Appointment, CallLog, ProductToggle
 
 
 @admin.register(Customer)
@@ -84,3 +84,11 @@ class CallLogAdmin(admin.ModelAdmin):
     list_filter = ["direction", "category_detected"]
     search_fields = ["phone_number", "transcript", "customer__name"]
     readonly_fields = ["created_at"]
+
+
+@admin.register(ProductToggle)
+class ProductToggleAdmin(admin.ModelAdmin):
+    list_display = ["category", "is_active", "updated_by", "updated_at"]
+    list_filter = ["is_active"]
+    list_editable = ["is_active"]
+    readonly_fields = ["updated_at"]

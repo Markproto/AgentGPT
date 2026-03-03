@@ -21,7 +21,7 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST, require_http_methods
 
 from .forms import CustomerForm, AppointmentForm, TextTemplateForm, SendTextForm, LoginForm
-from .models import Customer, Interaction, TextTemplate, Match, Appointment, CallLog, DayNote, InventoryNeed, Product, HighCommandMessage
+from .models import Customer, Interaction, TextTemplate, Match, Appointment, CallLog, DayNote, InventoryNeed, Product, HighCommandMessage, ProductToggle
 from .services import fetch_metal_prices
 
 logger = logging.getLogger(__name__)
@@ -2128,3 +2128,214 @@ def highcommand_api(request):
 
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
+
+
+# ============================================================================
+# Toggle Board — Voice Receptionist Product Scheduling Control
+# ============================================================================
+
+
+@login_required
+def toggle_board_view(request):
+    """Toggle board page for controlling Tark1 auto-scheduling behavior."""
+    toggles = ProductToggle.objects.all()
+    return render(request, "toggle_board.html", {"toggles": toggles})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def toggle_api(request):
+    """Internal API for flipping toggles from the UI.
+
+    POST: { "id": 1, "is_active": true }
+    GET: returns all toggles
+    """
+    if request.method == "GET":
+        toggles = ProductToggle.objects.all()
+        data = [
+            {
+                "id": t.id,
+                "category": t.category,
+                "label": t.get_category_display(),
+                "is_active": t.is_active,
+                "updated_at": t.updated_at.isoformat(),
+                "updated_by": t.updated_by,
+            }
+            for t in toggles
+        ]
+        return JsonResponse({"toggles": data})
+
+    # POST — flip a toggle
+    try:
+        body = json.loads(request.body)
+        toggle = get_object_or_404(ProductToggle, pk=body["id"])
+        toggle.is_active = body["is_active"]
+        toggle.updated_by = request.user.username
+        toggle.save()
+        return JsonResponse({
+            "status": "updated",
+            "id": toggle.id,
+            "is_active": toggle.is_active,
+            "updated_by": toggle.updated_by,
+        })
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+# ============================================================================
+# Tark1 External API — Called by voice receptionist on 192.168.1.200
+# ============================================================================
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def tark1_toggles_api(request):
+    """Public API for Tark1 to check which product categories are auto-schedule.
+
+    GET /api/toggles/
+
+    Response:
+    {
+        "toggles": {
+            "SCRAP_GOLD": {"label": "Scrap Gold", "auto_schedule": true},
+            "SCRAP_SILVER": {"label": "Scrap Silver", "auto_schedule": false},
+            ...
+        }
+    }
+
+    Tark1 logic:
+    - If category is in toggles and auto_schedule == true -> schedule appointment
+    - If category is in toggles and auto_schedule == false -> tell caller to wait for callback
+    - If category is NOT in toggles -> tell caller to wait for callback
+    """
+    toggles = ProductToggle.objects.all()
+    data = {}
+    for t in toggles:
+        data[t.category] = {
+            "label": t.get_category_display(),
+            "auto_schedule": t.is_active,
+        }
+    return JsonResponse({"toggles": data})
+
+
+@csrf_exempt
+@require_POST
+def tark1_voice_schedule_api(request):
+    """API for Tark1 to auto-create appointments from voice calls.
+
+    POST /api/voice-schedule/
+
+    Payload:
+    {
+        "caller_name": "John Smith",
+        "caller_phone": "+15415551234",
+        "category": "SCRAP_GOLD",
+        "preferred_date": "2026-03-04",       (optional)
+        "preferred_time": "14:00",             (optional)
+        "notes": "Has about 3 oz scrap gold",  (optional)
+        "location": "Ashland"                  (optional, defaults to J. Austin Office)
+    }
+
+    Response:
+    {
+        "status": "scheduled",
+        "appointment_id": 42,
+        "customer_id": 15,
+        "datetime": "2026-03-04T14:00:00"
+    }
+    """
+    try:
+        body = json.loads(request.body)
+
+        caller_name = body.get("caller_name", "").strip()
+        caller_phone = body.get("caller_phone", "").strip()
+        category = body.get("category", "").strip()
+
+        if not caller_name or not caller_phone:
+            return JsonResponse(
+                {"error": "caller_name and caller_phone are required"}, status=400
+            )
+
+        # Verify the category is toggled ON
+        toggle = ProductToggle.objects.filter(category=category).first()
+        if not toggle or not toggle.is_active:
+            return JsonResponse(
+                {"error": "Category not available for auto-scheduling", "action": "callback"},
+                status=403,
+            )
+
+        # Find or create the customer
+        clean_phone = caller_phone.replace("-", "").replace("(", "").replace(")", "").replace(" ", "").replace("+", "")
+        customer = None
+        if len(clean_phone) >= 10:
+            customer = Customer.objects.filter(phone__icontains=clean_phone[-10:]).first()
+
+        if not customer:
+            customer = Customer.objects.create(
+                name=caller_name,
+                phone=caller_phone,
+                source=Customer.Source.PHONE,
+                status=Customer.Status.ACTIVE,
+            )
+
+        # Determine appointment datetime
+        from datetime import datetime as dt
+        preferred_date = body.get("preferred_date", "")
+        preferred_time = body.get("preferred_time", "")
+
+        if preferred_date and preferred_time:
+            appt_datetime = timezone.make_aware(
+                dt.strptime(f"{preferred_date} {preferred_time}", "%Y-%m-%d %H:%M")
+            )
+        elif preferred_date:
+            appt_datetime = timezone.make_aware(
+                dt.strptime(f"{preferred_date} 10:00", "%Y-%m-%d %H:%M")
+            )
+        else:
+            # Default: next business day at 10 AM
+            tomorrow = timezone.now() + timedelta(days=1)
+            # Skip weekends
+            while tomorrow.weekday() >= 5:
+                tomorrow += timedelta(days=1)
+            appt_datetime = tomorrow.replace(hour=10, minute=0, second=0, microsecond=0)
+
+        location = body.get("location", "J. Austin Office")
+        notes = body.get("notes", "")
+
+        # Get the display label for purpose
+        category_label = toggle.get_category_display() if toggle else category
+
+        appointment = Appointment.objects.create(
+            customer=customer,
+            datetime=appt_datetime,
+            end_datetime=appt_datetime + timedelta(minutes=30),
+            purpose=f"Voice AI: {category_label}",
+            location=location,
+            status=Appointment.Status.SCHEDULED,
+            notes=f"Auto-scheduled by Tark1 voice receptionist.\n{notes}".strip(),
+        )
+
+        # Log the interaction
+        Interaction.objects.create(
+            customer=customer,
+            type=Interaction.Type.CALL,
+            direction=Interaction.Direction.INBOUND,
+            summary=f"Tark1 auto-scheduled appointment for {category_label}. {notes}".strip(),
+            raw_data=body,
+        )
+
+        return JsonResponse({
+            "status": "scheduled",
+            "appointment_id": appointment.id,
+            "customer_id": customer.id,
+            "customer_name": customer.name,
+            "datetime": appointment.datetime.isoformat(),
+            "location": appointment.location,
+            "purpose": appointment.purpose,
+        }, status=201)
+
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Tark1 voice-schedule error: {e}")
+        return JsonResponse({"error": str(e)}, status=500)

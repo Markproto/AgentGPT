@@ -434,6 +434,45 @@ class CallLog(models.Model):
         return f"Call: {customer_name} - {self.phone_number} ({self.created_at:%Y-%m-%d %H:%M})"
 
 
+class ProductToggle(models.Model):
+    """Toggle board for voice receptionist auto-scheduling.
+
+    When a toggle is ON, callers asking about that product category
+    are automatically scheduled for an appointment by Tark1.
+    When OFF, callers are told to wait for a callback.
+    Items not on the board at all require a callback.
+    """
+
+    CATEGORY_CHOICES = [
+        ("SCRAP_GOLD", "Scrap Gold"),
+        ("SCRAP_SILVER", "Scrap Silver"),
+        ("GOLD_EAGLES", "Gold Eagles"),
+        ("1OZ_SILVER_ROUNDS", "1 oz Silver Rounds"),
+        ("1OZ_SILVER_EAGLES", "1 oz Silver Eagles"),
+    ]
+
+    category = models.CharField(
+        max_length=30,
+        choices=CATEGORY_CHOICES,
+        unique=True,
+    )
+    is_active = models.BooleanField(
+        default=False,
+        help_text="ON = auto-schedule appointment, OFF = callback required",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.CharField(max_length=100, blank=True, default="")
+
+    class Meta:
+        ordering = ["category"]
+        verbose_name = "Product Toggle"
+        verbose_name_plural = "Product Toggles"
+
+    def __str__(self):
+        status = "ON" if self.is_active else "OFF"
+        return f"{self.get_category_display()} — {status}"
+
+
 class HighCommandMessage(models.Model):
     """Alert messages from High Command that flash across all screens."""
 
