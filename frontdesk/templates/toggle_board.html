@@ -157,7 +157,7 @@
                         {{ toggle.get_category_display }}
                     </h5>
                     <span class="toggle-status {% if toggle.is_active %}on{% else %}off{% endif %}" id="status-{{ toggle.id }}">
-                        {% if toggle.is_active %}AUTO-SCHEDULE{% else %}CALLBACK{% endif %}
+                        {% if toggle.is_active %}SCHEDULE NOW{% else %}CALLBACK{% endif %}
                     </span>
                 </div>
                 <div class="form-check form-switch">
@@ -171,7 +171,7 @@
             </div>
             <div class="toggle-body">
                 {% if toggle.is_active %}
-                    Callers about <strong>{{ toggle.get_category_display }}</strong> will be automatically scheduled for an appointment.
+                    Callers about <strong>{{ toggle.get_category_display }}</strong> will be immediately scheduled for an appointment — no callback needed.
                 {% else %}
                     Callers about <strong>{{ toggle.get_category_display }}</strong> will be told to wait for a callback.
                 {% endif %}
@@ -237,7 +237,7 @@ function flipToggle(toggleId, isActive) {
             card.classList.add('active');
             status.classList.remove('off');
             status.classList.add('on');
-            status.textContent = 'AUTO-SCHEDULE';
+            status.textContent = 'SCHEDULE NOW';
         } else {
             card.classList.remove('active');
             card.classList.add('inactive');
